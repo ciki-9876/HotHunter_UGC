@@ -752,7 +752,6 @@ function SnapshotSection() {
 
   return (
     <>
-      <div className="palette-title">我的工作流</div>
       {naming ? (
         <div className="snapshot-save-row">
           <input
@@ -847,68 +846,137 @@ function SnapshotSection() {
   )
 }
 
+interface PaletteSectionProps {
+  id: string
+  title: string
+  defaultOpen?: boolean
+  badge?: string | number
+  children: React.ReactNode
+}
+
+function PaletteSection({
+  title,
+  defaultOpen = true,
+  badge,
+  children,
+}: PaletteSectionProps) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className={`palette-section ${open ? 'open' : 'closed'}`}>
+      <button
+        className="palette-section-head"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className={`caret ${open ? '' : 'closed'}`}>▾</span>
+        <span className="palette-section-title">{title}</span>
+        {badge !== undefined && badge !== '' && (
+          <span className="palette-section-badge">{badge}</span>
+        )}
+      </button>
+      {open && <div className="palette-section-body">{children}</div>}
+    </div>
+  )
+}
+
 function Palette() {
   const addAgent = useBlueprint((s) => s.addAgentNode)
   const addDispatch = useBlueprint((s) => s.addDispatchNode)
   const addCritic = useBlueprint((s) => s.addCriticNode)
   const applyAutoLayout = useBlueprint((s) => s.applyAutoLayout)
   const isRunning = useBlueprint((s) => s.isRunning)
+  const snapshotsCount = useBlueprint((s) => s.snapshots.length)
+  const [collapsed, setCollapsed] = useState(false)
+
+  if (collapsed) {
+    return (
+      <div className="palette is-collapsed">
+        <button
+          className="palette-expand-btn"
+          onClick={() => setCollapsed(false)}
+          title="展开工具面板"
+        >
+          ▸
+          <span className="palette-expand-label">工具</span>
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="palette">
-      <div className="palette-title">添加节点</div>
-      <button
-        className="palette-btn"
-        onClick={() => addAgent()}
-        disabled={isRunning}
-      >
-        <span className="palette-icon">✦</span>
-        新 Agent
-      </button>
-      <button
-        className="palette-btn"
-        onClick={() => addCritic()}
-        disabled={isRunning}
-      >
-        <span className="palette-icon critic">⚖</span>
-        评审 Critic（闭环）
-      </button>
-      <button
-        className="palette-btn"
-        onClick={() => addDispatch('dashboard')}
-        disabled={isRunning}
-      >
-        <span className="palette-icon">↩</span>
-        输出回传 · 看板
-      </button>
-      <button
-        className="palette-btn"
-        onClick={() => addDispatch('project')}
-        disabled={isRunning}
-      >
-        <span className="palette-icon">↩</span>
-        输出回传 · 项目
-      </button>
-
-      <div className="palette-divider" />
-      <div className="palette-title">画布</div>
-      <button
-        className="palette-btn"
-        onClick={() => applyAutoLayout()}
-        disabled={isRunning}
-      >
-        <span className="palette-icon">🎨</span>
-        自动整理布局
-      </button>
-      <div className="palette-hint">
-        · 拖动节点改位置
-        <br />· 拖 Handle 连线
-        <br />· 拖到空白处自动建节点
-        <br />· 选中边按 Delete 删除
+      <div className="palette-head">
+        <span className="palette-head-title">画布工具</span>
+        <button
+          className="palette-fold-btn"
+          onClick={() => setCollapsed(true)}
+          title="收起面板"
+        >
+          ◂
+        </button>
       </div>
+      <div className="palette-body">
+        <PaletteSection id="nodes" title="添加节点" defaultOpen={true}>
+          <button
+            className="palette-btn"
+            onClick={() => addAgent()}
+            disabled={isRunning}
+          >
+            <span className="palette-icon">✦</span>
+            新 Agent
+          </button>
+          <button
+            className="palette-btn"
+            onClick={() => addCritic()}
+            disabled={isRunning}
+          >
+            <span className="palette-icon critic">⚖</span>
+            评审 Critic（闭环）
+          </button>
+          <button
+            className="palette-btn"
+            onClick={() => addDispatch('dashboard')}
+            disabled={isRunning}
+          >
+            <span className="palette-icon">↩</span>
+            输出回传 · 看板
+          </button>
+          <button
+            className="palette-btn"
+            onClick={() => addDispatch('project')}
+            disabled={isRunning}
+          >
+            <span className="palette-icon">↩</span>
+            输出回传 · 项目
+          </button>
+        </PaletteSection>
 
-      <div className="palette-divider" />
-      <SnapshotSection />
+        <PaletteSection id="canvas" title="画布" defaultOpen={true}>
+          <button
+            className="palette-btn"
+            onClick={() => applyAutoLayout()}
+            disabled={isRunning}
+          >
+            <span className="palette-icon">🎨</span>
+            自动整理布局
+          </button>
+          <div className="palette-hint">
+            · 拖动节点改位置
+            <br />· 拖 Handle 连线
+            <br />· 拖到空白处自动建节点
+            <br />· 选中边按 Delete 删除
+          </div>
+        </PaletteSection>
+
+        <PaletteSection
+          id="snapshots"
+          title="我的工作流"
+          badge={snapshotsCount || undefined}
+          defaultOpen={false}
+        >
+          <SnapshotSection />
+        </PaletteSection>
+      </div>
     </div>
   )
 }

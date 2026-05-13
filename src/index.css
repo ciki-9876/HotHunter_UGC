@@ -895,24 +895,157 @@ button {
 }
 
 /* ============================================================
- * Palette (left of canvas)
+ * Palette (left of canvas) — scrollable, foldable sections, collapsible to bar
  * ============================================================ */
 .palette {
   position: absolute;
   left: 16px;
   top: 16px;
   z-index: 6;
-  width: 200px;
-  background: rgba(22, 25, 34, 0.85);
+  width: 220px;
+  max-height: calc(100% - 32px);
+  background: rgba(22, 25, 34, 0.88);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
 }
+.palette.is-collapsed {
+  width: 36px;
+  background: rgba(22, 25, 34, 0.92);
+}
+.palette-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.palette-head-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+.palette-fold-btn,
+.palette-expand-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.palette-fold-btn:hover,
+.palette-expand-btn:hover {
+  background: rgba(79, 140, 255, 0.12);
+  color: var(--text);
+  border-color: rgba(79, 140, 255, 0.45);
+}
+.palette-expand-btn {
+  width: 100%;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  padding: 12px 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text);
+}
+.palette-expand-label {
+  font-size: 11px;
+  writing-mode: vertical-rl;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.palette-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px 12px;
+}
+.palette-body::-webkit-scrollbar {
+  width: 6px;
+}
+.palette-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+.palette-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.palette-section {
+  border-top: 1px solid transparent;
+  margin: 4px 0;
+}
+.palette-section + .palette-section {
+  border-top-color: var(--border);
+  margin-top: 8px;
+  padding-top: 4px;
+}
+.palette-section-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 6px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.palette-section-head:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+.palette-section-head .caret {
+  display: inline-block;
+  width: 12px;
+  color: var(--accent);
+  transition: transform 0.18s ease;
+}
+.palette-section-head .caret.closed {
+  transform: rotate(-90deg);
+}
+.palette-section-title {
+  flex: 1;
+}
+.palette-section-badge {
+  background: rgba(79, 140, 255, 0.16);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  letter-spacing: 0;
+}
+.palette-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 6px;
+}
+
+/* (legacy classes kept for any non-Palette callers that styled themselves) */
 .palette-title {
   font-size: 11px;
   letter-spacing: 1px;
