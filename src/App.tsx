@@ -246,9 +246,32 @@ function TopBar() {
         onClick={() => setSettingsOpen(true)}
         title="模型配置"
       >
-        ⚙ <span className="settings-btn-label">{modelLabel}</span>
+        <span className="settings-cog">
+          <CogIcon />
+        </span>
+        <span className="settings-btn-label">{modelLabel}</span>
       </button>
     </div>
+  )
+}
+
+function CogIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="2.2" />
+      <path
+        d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.5 1.5M11 11l1.5 1.5M3.5 12.5l1.5-1.5M11 5l1.5-1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   )
 }
 
