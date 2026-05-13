@@ -100,4 +100,9 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
+  preview: {
+    port: 5174,
+    host: true,
+    allowedHosts: true,   // allow all tunnel hosts
+  },
 })
