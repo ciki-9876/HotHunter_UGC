@@ -11,6 +11,13 @@ import {
 import { create } from 'zustand'
 import { runAgent } from './agent/client'
 import {
+  DEFAULT_CRITIC_DATA,
+  MOCK_CRITIC_SEQUENCE,
+  criticPrompts,
+  parseCriticJudgement,
+  type CriticNodeData,
+} from './agent/critic'
+import {
   DEFAULT_NODE_CONFIGS,
   GENERIC_AGENT_CONFIG,
   NODE_IDS,
@@ -26,7 +33,15 @@ import {
   type GiaFile,
   type HotTopicCard,
 } from './agent/dispatch'
+import { autoLayout } from './agent/layout'
 import { defaultProviderConfig } from './agent/presets'
+import {
+  isValidSnapshot,
+  loadSnapshots,
+  newSnapshotId,
+  persistSnapshots,
+  type WorkflowSnapshot,
+} from './agent/snapshots'
 import type { NodeConfig, ProviderConfig } from './agent/types'
 
 export type NodeStatus = 'idle' | 'running' | 'done' | 'error'
@@ -41,6 +56,7 @@ export type CustomNodeKind =
   | 'genericAgent'
   | 'outputNode'
   | 'dispatchNode'
+  | 'criticNode'
 
 export interface DispatchNodeData {
   target: DispatchTarget
@@ -226,10 +242,21 @@ export interface BlueprintState {
   ) => void
   addDispatchNode: (target?: DispatchTarget) => void
   setDispatchTarget: (id: string, target: DispatchTarget) => void
+  addCriticNode: () => void
+  updateCriticData: (id: string, patch: Partial<CriticNodeData>) => void
+
+  // ---- canvas layout ----
+  applyAutoLayout: () => void
 
   // ---- per-node UI state ----
   collapsedNodes: Record<string, boolean>
   toggleNodeCollapsed: (id: string) => void
+
+  // ---- per-node critic runtime info (iteration / score) ----
+  criticRuntime: Record<
+    string,
+    { iteration: number; score: number; feedback: string; passed: boolean }
+  >
 
   // ---- run state ----
   topic: string
@@ -273,6 +300,14 @@ export interface BlueprintState {
 
   removeDashboardCard: (id: string) => void
   removeProjectFile: (id: string) => void
+
+  // ---- workflow snapshots ----
+  snapshots: WorkflowSnapshot[]
+  saveSnapshot: (name: string) => void
+  loadSnapshot: (id: string) => void
+  deleteSnapshot: (id: string) => void
+  exportSnapshot: (id: string) => void
+  importSnapshotJson: (json: string) => boolean
 }
 
 function summarize(text: string, limit = 56): string {
@@ -495,6 +530,42 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
     }))
   },
 
+  addCriticNode: () => {
+    const id = makeNodeId('critic')
+    set((s) => {
+      const newNode: Node = {
+        id,
+        type: 'criticNode',
+        position: { x: 880 + Math.random() * 80, y: 540 + Math.random() * 60 },
+        data: { ...DEFAULT_CRITIC_DATA } as CriticNodeData,
+      }
+      return {
+        nodes: [...s.nodes, newNode],
+        nodeStatus: { ...s.nodeStatus, [id]: 'idle' },
+        nodeResult: { ...s.nodeResult, [id]: '' },
+        nodeSummary: { ...s.nodeSummary, [id]: '等待上游内容评审…' },
+      }
+    })
+    get().showToast('已添加评审节点 — 连到 Agent 上游可启用闭环', 1800)
+  },
+
+  updateCriticData: (id, patch) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === id
+          ? { ...n, data: { ...(n.data ?? {}), ...patch } }
+          : n,
+      ),
+    }))
+  },
+
+  applyAutoLayout: () => {
+    set((s) => ({ nodes: autoLayout(s.nodes, s.edges) }))
+    get().showToast('画布已重新排版', 1400)
+  },
+
+  criticRuntime: {},
+
   topic: localStorage.getItem(LS_TOPIC) ?? '如何在不确定中保持高效',
   isRunning: false,
   abortController: null,
@@ -598,6 +669,8 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
           summary[id] = '等待最终文章…'
         } else if (n.type === 'topicInput') {
           summary[id] = s.topic
+        } else if (n.type === 'criticNode') {
+          summary[id] = '等待上游内容评审…'
         } else {
           summary[id] = '等待上游输入…'
         }
@@ -610,6 +683,7 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
         nodeResult: result,
         nodeSummary: summary,
         nodeError: {},
+        criticRuntime: {},
       }
     }),
 
@@ -645,6 +719,131 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
       state.edges,
       NODE_IDS.input,
     )
+
+    const gatherInput = (nodeId: string): string =>
+      (upstreams[nodeId] ?? [])
+        .map((u) => get().nodeResult[u] ?? '')
+        .filter(Boolean)
+        .join('\n\n---\n\n')
+
+    /**
+     * Execute a single agent-like node and stream its output back into the
+     * store. Used by both the main BFS loop and the critic feedback loop.
+     */
+    const runAgentNode = async (
+      nodeId: string,
+      upstreamText: string,
+      extraFeedback?: string,
+    ): Promise<string> => {
+      const node = state.nodes.find((n) => n.id === nodeId)
+      const cfg =
+        get().nodeConfigs[nodeId] ??
+        DEFAULT_NODE_CONFIGS[nodeId] ??
+        GENERIC_AGENT_CONFIG
+      const resolved = resolveCfg(state.provider, cfg.override)
+      let userPrompt = fillTemplate(cfg.userPromptTemplate, {
+        topic,
+        input: upstreamText || TOPIC_DEFAULTS[nodeId]?.() || topic,
+      })
+      const extra = cfg.extraPrompt?.trim()
+      if (extra) {
+        userPrompt = `${userPrompt}\n\n额外要求：\n${extra}`
+      }
+      if (extraFeedback?.trim()) {
+        userPrompt = `${userPrompt}\n\n上一版评审反馈，请基于此改进：\n${extraFeedback}\n\n请输出改进后的新版本。`
+      }
+
+      set((s) => ({
+        nodeStatus: { ...s.nodeStatus, [nodeId]: 'running' },
+        nodeSummary: {
+          ...s.nodeSummary,
+          [nodeId]: extraFeedback ? '基于反馈重新生成…' : '生成中…',
+        },
+        nodeResult: { ...s.nodeResult, [nodeId]: '' },
+      }))
+
+      let acc = ''
+      if (useMock) {
+        const baseFull =
+          nodeId === NODE_IDS.outline
+            ? mockOutline(topic)
+            : nodeId === NODE_IDS.writer
+              ? mockArticle(topic)
+              : nodeId === NODE_IDS.editor
+                ? mockEdited(topic)
+                : `# ${cfg.label}\n\n基于以下输入生成的内容（mock）：\n\n${
+                    upstreamText || topic
+                  }\n\n— 这是一个 mock 输出，配置 API Key 后即可走真实模型。`
+        const full = extraFeedback
+          ? `${baseFull}\n\n_（已根据评审反馈改进，本轮迭代）_`
+          : baseFull
+        const step = Math.max(2, Math.floor(full.length / 60))
+        for (let i = 0; i < full.length; i += step) {
+          if (abort.signal.aborted) throw new Error('已取消')
+          acc = full.slice(0, i + step)
+          const snap = acc
+          set((s) => ({
+            nodeResult: { ...s.nodeResult, [nodeId]: snap },
+            nodeSummary: { ...s.nodeSummary, [nodeId]: summarize(snap) },
+          }))
+          await wait(28)
+        }
+        acc = full
+      } else {
+        for await (const chunk of runAgent(resolved, {
+          systemPrompt: cfg.systemPrompt,
+          userPrompt,
+          temperature: cfg.temperature,
+          maxTokens: cfg.maxTokens,
+          signal: abort.signal,
+        })) {
+          acc += chunk
+          const snap = acc
+          set((s) => ({
+            nodeResult: { ...s.nodeResult, [nodeId]: snap },
+            nodeSummary: { ...s.nodeSummary, [nodeId]: summarize(snap) },
+          }))
+        }
+      }
+
+      set((s) => ({
+        nodeStatus: { ...s.nodeStatus, [nodeId]: 'done' },
+        nodeResult: { ...s.nodeResult, [nodeId]: acc },
+        nodeSummary: { ...s.nodeSummary, [nodeId]: summarize(acc) },
+      }))
+      void node // keep ref for potential future use
+      return acc
+    }
+
+    /** Run the critic LLM judge once and parse the verdict. */
+    const judgeOnce = async (
+      candidateText: string,
+      data: CriticNodeData,
+      iter: number,
+    ) => {
+      if (useMock) {
+        const seq = MOCK_CRITIC_SEQUENCE
+        const idx = Math.min(iter - 1, seq.length - 1)
+        // gradual reveal so the loop feels alive even in mock
+        await wait(600)
+        return seq[idx]
+      }
+      const { systemPrompt, userPrompt } = criticPrompts(
+        data.rubric,
+        candidateText,
+      )
+      let raw = ''
+      for await (const chunk of runAgent(state.provider, {
+        systemPrompt,
+        userPrompt,
+        temperature: 0.2,
+        maxTokens: 400,
+        signal: abort.signal,
+      })) {
+        raw += chunk
+      }
+      return parseCriticJudgement(raw)
+    }
 
     try {
       for (const nodeId of order) {
@@ -730,71 +929,84 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
           continue
         }
 
-        // Agent-like node (outlineAgent / writerAgent / editorAgent / genericAgent)
-        const cfg =
-          get().nodeConfigs[nodeId] ??
-          DEFAULT_NODE_CONFIGS[nodeId] ??
-          GENERIC_AGENT_CONFIG
-        const resolved = resolveCfg(state.provider, cfg.override)
-        let userPrompt = fillTemplate(cfg.userPromptTemplate, {
-          topic,
-          input: upstreamText || TOPIC_DEFAULTS[nodeId]?.() || topic,
-        })
-        const extra = cfg.extraPrompt?.trim()
-        if (extra) {
-          userPrompt = `${userPrompt}\n\n额外要求：\n${extra}`
-        }
-
-        set((s) => ({
-          nodeStatus: { ...s.nodeStatus, [nodeId]: 'running' },
-          nodeSummary: { ...s.nodeSummary, [nodeId]: '生成中…' },
-        }))
-
-        let acc = ''
-        if (useMock) {
-          // Stream a canned mock for demo feel
-          const full =
-            nodeId === NODE_IDS.outline
-              ? mockOutline(topic)
-              : nodeId === NODE_IDS.writer
-                ? mockArticle(topic)
-                : nodeId === NODE_IDS.editor
-                  ? mockEdited(topic)
-                  : `# ${cfg.label}\n\n基于以下输入生成的内容（mock）：\n\n${upstreamText || topic}\n\n— 这是一个 mock 输出，配置 API Key 后即可走真实模型。`
-          const step = Math.max(2, Math.floor(full.length / 60))
-          for (let i = 0; i < full.length; i += step) {
+        if (node.type === 'criticNode') {
+          const data = (node.data as CriticNodeData | undefined) ?? DEFAULT_CRITIC_DATA
+          const upstreamIds = upstreams[nodeId] ?? []
+          const upstreamId = upstreamIds[0]
+          if (!upstreamId) {
+            set((s) => ({
+              nodeStatus: { ...s.nodeStatus, [nodeId]: 'error' },
+              nodeError: {
+                ...s.nodeError,
+                [nodeId]: '评审节点缺少上游 Agent。请把它连到一个 Agent 节点后面。',
+              },
+              nodeSummary: {
+                ...s.nodeSummary,
+                [nodeId]: '缺少上游 — 请先连线',
+              },
+            }))
+            continue
+          }
+          let candidate = get().nodeResult[upstreamId] ?? upstreamText
+          let passed = false
+          let lastScore = 0
+          let lastFeedback = ''
+          let iter = 0
+          for (iter = 1; iter <= data.maxIterations; iter++) {
             if (abort.signal.aborted) throw new Error('已取消')
-            acc = full.slice(0, i + step)
-            const snap = acc
             set((s) => ({
-              nodeResult: { ...s.nodeResult, [nodeId]: snap },
-              nodeSummary: { ...s.nodeSummary, [nodeId]: summarize(snap) },
+              nodeStatus: { ...s.nodeStatus, [nodeId]: 'running' },
+              nodeSummary: {
+                ...s.nodeSummary,
+                [nodeId]: `评审第 ${iter}/${data.maxIterations} 轮…`,
+              },
             }))
-            await wait(28)
-          }
-          acc = full
-        } else {
-          for await (const chunk of runAgent(resolved, {
-            systemPrompt: cfg.systemPrompt,
-            userPrompt,
-            temperature: cfg.temperature,
-            maxTokens: cfg.maxTokens,
-            signal: abort.signal,
-          })) {
-            acc += chunk
-            const snap = acc
+            const judgement = await judgeOnce(candidate, data, iter)
+            lastScore = judgement.score
+            lastFeedback = judgement.feedback
             set((s) => ({
-              nodeResult: { ...s.nodeResult, [nodeId]: snap },
-              nodeSummary: { ...s.nodeSummary, [nodeId]: summarize(snap) },
+              criticRuntime: {
+                ...s.criticRuntime,
+                [nodeId]: {
+                  iteration: iter,
+                  score: judgement.score,
+                  feedback: judgement.feedback,
+                  passed: judgement.score >= data.threshold,
+                },
+              },
             }))
+            if (judgement.score >= data.threshold) {
+              passed = true
+              break
+            }
+            if (iter === data.maxIterations) break
+            // Re-run upstream with feedback
+            const upstreamInput = gatherInput(upstreamId)
+            candidate = await runAgentNode(
+              upstreamId,
+              upstreamInput,
+              judgement.feedback,
+            )
           }
+          const summary = passed
+            ? `✓ 通过 (${lastScore} 分, ${iter} 轮)`
+            : `⚠ 未通过 (${lastScore} 分, 已达 ${data.maxIterations} 轮上限)`
+          set((s) => ({
+            nodeStatus: { ...s.nodeStatus, [nodeId]: 'done' },
+            nodeResult: { ...s.nodeResult, [nodeId]: candidate },
+            nodeSummary: { ...s.nodeSummary, [nodeId]: summary },
+            nodeError: passed
+              ? s.nodeError
+              : {
+                  ...s.nodeError,
+                  [nodeId]: `${summary}\n最后反馈：${lastFeedback}`,
+                },
+          }))
+          continue
         }
 
-        set((s) => ({
-          nodeStatus: { ...s.nodeStatus, [nodeId]: 'done' },
-          nodeResult: { ...s.nodeResult, [nodeId]: acc },
-          nodeSummary: { ...s.nodeSummary, [nodeId]: summarize(acc) },
-        }))
+        // Agent-like node (outlineAgent / writerAgent / editorAgent / genericAgent)
+        await runAgentNode(nodeId, upstreamText)
       }
 
       set({ isRunning: false, abortController: null })
@@ -830,4 +1042,105 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
     set((s) => ({ dashboardCards: s.dashboardCards.filter((c) => c.id !== id) })),
   removeProjectFile: (id) =>
     set((s) => ({ projectFiles: s.projectFiles.filter((f) => f.id !== id) })),
+
+  snapshots: loadSnapshots(),
+  saveSnapshot: (name) => {
+    const s = get()
+    const id = newSnapshotId()
+    // shallow-clone graph data so subsequent edits don't mutate the snapshot
+    const snap: WorkflowSnapshot = {
+      id,
+      name: name.trim() || `未命名 ${new Date().toLocaleString()}`,
+      savedAt: Date.now(),
+      topic: s.topic,
+      nodes: JSON.parse(JSON.stringify(s.nodes)),
+      edges: JSON.parse(JSON.stringify(s.edges)),
+      nodeConfigs: JSON.parse(JSON.stringify(s.nodeConfigs)),
+      version: 1,
+    }
+    const next = [snap, ...s.snapshots].slice(0, 32)
+    persistSnapshots(next)
+    set({ snapshots: next })
+    get().showToast(`已保存工作流：${snap.name}`, 1800)
+  },
+  loadSnapshot: (id) => {
+    const snap = get().snapshots.find((x) => x.id === id)
+    if (!snap) return
+    // bring graph state in line with the snapshot; preserve provider config
+    const status: Record<string, NodeStatus> = {}
+    const result: Record<string, string> = {}
+    const summary: Record<string, string> = {}
+    for (const n of snap.nodes) {
+      status[n.id] = n.id === NODE_IDS.input ? 'done' : 'idle'
+      result[n.id] = n.id === NODE_IDS.input ? snap.topic : ''
+      if (n.type === 'topicInput') summary[n.id] = snap.topic
+      else if (n.type === 'dispatchNode') {
+        const t = (n.data as DispatchNodeData | undefined)?.target ?? 'dashboard'
+        summary[n.id] =
+          t === 'dashboard' ? '等待输出 → 数据看板' : '等待输出 → 项目中心'
+      } else if (n.type === 'outputNode') summary[n.id] = '等待最终文章…'
+      else if (n.type === 'criticNode') summary[n.id] = '等待上游内容评审…'
+      else summary[n.id] = '等待上游输入…'
+    }
+    persistNodeConfigs(snap.nodeConfigs)
+    localStorage.setItem(LS_TOPIC, snap.topic)
+    set({
+      nodes: snap.nodes,
+      edges: snap.edges,
+      nodeConfigs: snap.nodeConfigs,
+      topic: snap.topic,
+      nodeStatus: status,
+      nodeResult: result,
+      nodeSummary: summary,
+      nodeError: {},
+      criticRuntime: {},
+      collapsedNodes: {},
+      selectedNodeId: null,
+    })
+    get().showToast(`已加载：${snap.name}`, 1600)
+  },
+  deleteSnapshot: (id) => {
+    const next = get().snapshots.filter((x) => x.id !== id)
+    persistSnapshots(next)
+    set({ snapshots: next })
+  },
+  exportSnapshot: (id) => {
+    const snap = get().snapshots.find((x) => x.id === id)
+    if (!snap) return
+    const blob = new Blob([JSON.stringify(snap, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${snap.name.replace(/[^\w一-龥-]+/g, '_')}.flow.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
+  importSnapshotJson: (json) => {
+    try {
+      const parsed = JSON.parse(json)
+      if (!isValidSnapshot(parsed)) {
+        get().showToast('文件结构无效')
+        return false
+      }
+      // Give it a new id to avoid collision
+      const snap: WorkflowSnapshot = {
+        ...parsed,
+        id: newSnapshotId(),
+        name: `${parsed.name}（导入）`,
+        savedAt: Date.now(),
+      }
+      const next = [snap, ...get().snapshots].slice(0, 32)
+      persistSnapshots(next)
+      set({ snapshots: next })
+      get().showToast(`已导入：${snap.name}`)
+      return true
+    } catch {
+      get().showToast('导入失败：JSON 解析错误')
+      return false
+    }
+  },
 }))

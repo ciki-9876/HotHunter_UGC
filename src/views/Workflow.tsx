@@ -1,9 +1,10 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import ReactFlow, {
   Background,
   BackgroundVariant,
   Controls,
   Handle,
+  MiniMap,
   Position,
   ReactFlowProvider,
   getBezierPath,
@@ -15,6 +16,7 @@ import ReactFlow, {
   type OnConnectEnd,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { Markdown } from '../components/Markdown'
 import {
   useBlueprint,
   type DispatchNodeData,
@@ -26,6 +28,7 @@ import {
   DEFAULT_NODE_CONFIGS,
 } from '../agent/defaults'
 import { DISPATCH_FORMATS, type DispatchTarget } from '../agent/dispatch'
+import type { CriticNodeData } from '../agent/critic'
 
 /* ============================================================
  *  helpers
@@ -304,6 +307,102 @@ function DispatchNode({ id, selected, data }: NodeProps<DispatchNodeData>) {
   )
 }
 
+function CriticNode({ id, selected, data }: NodeProps<CriticNodeData>) {
+  const status = useBlueprint((s) => s.nodeStatus[id])
+  const summary = useBlueprint((s) => s.nodeSummary[id])
+  const runtime = useBlueprint((s) => s.criticRuntime[id])
+  const isRunning = useBlueprint((s) => s.isRunning)
+  const updateCriticData = useBlueprint((s) => s.updateCriticData)
+  const threshold = data?.threshold ?? 75
+  const maxIter = data?.maxIterations ?? 3
+  const rubric = data?.rubric ?? ''
+
+  return (
+    <div
+      className={`node-card node-critic ${statusClass(status)} ${
+        selected ? 'is-selected' : ''
+      }`}
+    >
+      <div className="node-header">
+        <span className="node-icon critic-icon">⚖</span>
+        <div className="node-name-block">
+          <div className="node-title">评审 Critic</div>
+          <div className="node-model-line">
+            阈值 ≥ {threshold} · 最多 {maxIter} 轮
+          </div>
+        </div>
+        <span className="node-status-dot" />
+      </div>
+      <textarea
+        className="extra-prompt-input nodrag"
+        placeholder="评分标准 rubric…"
+        rows={2}
+        value={rubric}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => updateCriticData(id, { rubric: e.target.value })}
+        disabled={isRunning}
+      />
+      <div className="critic-knobs nodrag" onClick={(e) => e.stopPropagation()}>
+        <label className="critic-knob">
+          阈值
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={threshold}
+            disabled={isRunning}
+            onChange={(e) =>
+              updateCriticData(id, {
+                threshold: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+              })
+            }
+          />
+        </label>
+        <label className="critic-knob">
+          最大轮
+          <input
+            type="number"
+            min={1}
+            max={8}
+            value={maxIter}
+            disabled={isRunning}
+            onChange={(e) =>
+              updateCriticData(id, {
+                maxIterations: Math.max(1, Math.min(8, Number(e.target.value) || 1)),
+              })
+            }
+          />
+        </label>
+      </div>
+      <div className="node-output">
+        <div className="node-output-body">
+          {runtime ? (
+            <>
+              <div className={`critic-score ${runtime.passed ? 'pass' : 'fail'}`}>
+                <span className="critic-score-num">{runtime.score}</span>
+                <span className="critic-score-label">
+                  {runtime.passed ? '通过' : '未达阈值'} · 第 {runtime.iteration} 轮
+                </span>
+              </div>
+              {runtime.feedback && (
+                <div className="critic-feedback">{runtime.feedback}</div>
+              )}
+            </>
+          ) : (
+            summary || '等待上游内容评审…'
+          )}
+        </div>
+      </div>
+      <div className="node-footer">
+        <NodeStatusLabel status={status} />
+        <span className="hint-text">点击查看完整反馈</span>
+      </div>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+    </div>
+  )
+}
+
 /* ============================================================
  *  animated edge
  * ============================================================ */
@@ -378,12 +477,14 @@ function labelForNode(node: Node | undefined, cfgLabel?: string): string {
   if (NODE_LABELS[node.id]) return NODE_LABELS[node.id]
   if (node.type === 'genericAgent') return '新 Agent'
   if (node.type === 'dispatchNode') return '输出回传'
+  if (node.type === 'criticNode') return '评审 Critic'
   return node.id
 }
 function iconForNode(node: Node | undefined): string {
   if (!node) return ''
   if (NODE_ICONS[node.id]) return NODE_ICONS[node.id]
   if (node.type === 'dispatchNode') return '↩'
+  if (node.type === 'criticNode') return '⚖'
   return '✦'
 }
 
@@ -411,14 +512,16 @@ function ResultTab({ nodeId }: { nodeId: string }) {
           字符：<b>{result?.length ?? 0}</b>
         </span>
       </div>
-      <div className="panel-body">
+      <div className="panel-body panel-body-md">
         {error && (
           <div className="panel-error">
             <b>错误：</b>
             {error}
           </div>
         )}
-        {result || (
+        {result ? (
+          <Markdown source={result} />
+        ) : (
           <span style={{ color: 'var(--text-dim)' }}>
             （暂无内容，先点 ▶ 开始运行）
           </span>
@@ -621,9 +724,134 @@ function SidePanel() {
  *  palette
  * ============================================================ */
 
+function SnapshotSection() {
+  const snapshots = useBlueprint((s) => s.snapshots)
+  const saveSnapshot = useBlueprint((s) => s.saveSnapshot)
+  const loadSnapshot = useBlueprint((s) => s.loadSnapshot)
+  const deleteSnapshot = useBlueprint((s) => s.deleteSnapshot)
+  const exportSnapshot = useBlueprint((s) => s.exportSnapshot)
+  const importSnapshotJson = useBlueprint((s) => s.importSnapshotJson)
+  const isRunning = useBlueprint((s) => s.isRunning)
+  const [naming, setNaming] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const onPickFile = () => fileInputRef.current?.click()
+  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const text = await file.text()
+    importSnapshotJson(text)
+  }
+  const onConfirmSave = () => {
+    saveSnapshot(draftName)
+    setNaming(false)
+    setDraftName('')
+  }
+
+  return (
+    <>
+      <div className="palette-title">我的工作流</div>
+      {naming ? (
+        <div className="snapshot-save-row">
+          <input
+            autoFocus
+            type="text"
+            placeholder="工作流名称…"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onConfirmSave()
+              if (e.key === 'Escape') {
+                setNaming(false)
+                setDraftName('')
+              }
+            }}
+          />
+          <button className="primary-btn small" onClick={onConfirmSave}>
+            保存
+          </button>
+          <button
+            className="ghost-btn small"
+            onClick={() => {
+              setNaming(false)
+              setDraftName('')
+            }}
+          >
+            取消
+          </button>
+        </div>
+      ) : (
+        <button
+          className="palette-btn"
+          onClick={() => setNaming(true)}
+          disabled={isRunning}
+        >
+          <span className="palette-icon">💾</span>
+          保存当前快照
+        </button>
+      )}
+
+      {snapshots.length === 0 ? (
+        <div className="palette-hint" style={{ borderTop: 'none', padding: 0 }}>
+          还没有保存的工作流。
+        </div>
+      ) : (
+        <div className="snapshot-list">
+          {snapshots.map((s) => (
+            <div className="snapshot-row" key={s.id}>
+              <button
+                className="snapshot-load"
+                title={`节点 ${s.nodes.length} · 边 ${s.edges.length}`}
+                onClick={() => loadSnapshot(s.id)}
+                disabled={isRunning}
+              >
+                <div className="snapshot-name">{s.name}</div>
+                <div className="snapshot-meta">
+                  {new Date(s.savedAt).toLocaleString()} · {s.nodes.length}/
+                  {s.edges.length}
+                </div>
+              </button>
+              <button
+                className="snapshot-icon-btn"
+                title="导出 JSON"
+                onClick={() => exportSnapshot(s.id)}
+              >
+                ↗
+              </button>
+              <button
+                className="snapshot-icon-btn danger"
+                title="删除"
+                onClick={() => deleteSnapshot(s.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button className="palette-btn" onClick={onPickFile} disabled={isRunning}>
+        <span className="palette-icon">📥</span>
+        导入 JSON
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={onFileChosen}
+      />
+    </>
+  )
+}
+
 function Palette() {
   const addAgent = useBlueprint((s) => s.addAgentNode)
   const addDispatch = useBlueprint((s) => s.addDispatchNode)
+  const addCritic = useBlueprint((s) => s.addCriticNode)
+  const applyAutoLayout = useBlueprint((s) => s.applyAutoLayout)
   const isRunning = useBlueprint((s) => s.isRunning)
 
   return (
@@ -636,6 +864,14 @@ function Palette() {
       >
         <span className="palette-icon">✦</span>
         新 Agent
+      </button>
+      <button
+        className="palette-btn"
+        onClick={() => addCritic()}
+        disabled={isRunning}
+      >
+        <span className="palette-icon critic">⚖</span>
+        评审 Critic（闭环）
       </button>
       <button
         className="palette-btn"
@@ -653,12 +889,26 @@ function Palette() {
         <span className="palette-icon">↩</span>
         输出回传 · 项目
       </button>
+
+      <div className="palette-divider" />
+      <div className="palette-title">画布</div>
+      <button
+        className="palette-btn"
+        onClick={() => applyAutoLayout()}
+        disabled={isRunning}
+      >
+        <span className="palette-icon">🎨</span>
+        自动整理布局
+      </button>
       <div className="palette-hint">
         · 拖动节点改位置
         <br />· 拖 Handle 连线
         <br />· 拖到空白处自动建节点
         <br />· 选中边按 Delete 删除
       </div>
+
+      <div className="palette-divider" />
+      <SnapshotSection />
     </div>
   )
 }
@@ -675,6 +925,7 @@ const nodeTypes = {
   genericAgent: AgentNode,
   outputNode: OutputNode,
   dispatchNode: DispatchNode,
+  criticNode: CriticNode,
 }
 const edgeTypes = { flow: FlowEdge }
 
@@ -805,6 +1056,33 @@ function CanvasInner() {
         color="#262c3a"
       />
       <Controls position="bottom-left" showInteractive={false} />
+      <MiniMap
+        position="bottom-right"
+        pannable
+        zoomable
+        ariaLabel="画布缩略图"
+        maskColor="rgba(15, 17, 23, 0.7)"
+        nodeColor={(n) => {
+          switch (n.type) {
+            case 'topicInput':
+              return '#4f8cff'
+            case 'criticNode':
+              return '#ff9a3c'
+            case 'dispatchNode':
+              return '#f0b84a'
+            case 'outputNode':
+              return '#2bd4a5'
+            default:
+              return '#9aa6c2'
+          }
+        }}
+        nodeStrokeWidth={2}
+        style={{
+          background: 'rgba(22, 25, 34, 0.85)',
+          border: '1px solid #2a3142',
+          borderRadius: 8,
+        }}
+      />
     </ReactFlow>
   )
 }

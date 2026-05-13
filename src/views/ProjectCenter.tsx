@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Markdown } from '../components/Markdown'
 import { useBlueprint } from '../store'
 import type { GiaFile } from '../agent/dispatch'
 
@@ -67,7 +68,9 @@ function FilePreview({ file }: { file: GiaFile }) {
         {file.sections.map((s, idx) => (
           <div className="section-block" key={idx}>
             <div className="section-heading">{s.heading}</div>
-            <div className="section-body">{s.body}</div>
+            <div className="section-body">
+              <Markdown source={s.body} />
+            </div>
           </div>
         ))}
       </div>
