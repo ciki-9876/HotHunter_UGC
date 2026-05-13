@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { useBlueprint } from '../store'
+import { useExecutionStore } from '../store'
+import type { HotTopicCard } from '../agent/dispatch'
 
 function relTime(ts: number): string {
   const diff = Date.now() - ts
@@ -19,8 +20,8 @@ function trendIcon(t: number): string {
 }
 
 export default function DashboardView() {
-  const cards = useBlueprint((s) => s.dashboardCards)
-  const removeCard = useBlueprint((s) => s.removeDashboardCard)
+  const cards = useExecutionStore((s) => s.dashboardCards)
+  const removeCard = (_id: string) => {}
 
   const stats = useMemo(() => {
     const ugc = cards.filter((c) => c.tags.includes('UGC')).length

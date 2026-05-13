@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Markdown } from '../components/Markdown'
-import { useBlueprint } from '../store'
+import { useExecutionStore, usePersistenceStore } from '../store'
 import type { GiaFile } from '../agent/dispatch'
 
 function formatTime(ts: number): string {
@@ -12,14 +12,14 @@ function formatTime(ts: number): string {
 }
 
 function FilePreview({ file }: { file: GiaFile }) {
-  const showToast = useBlueprint((s) => s.showToast)
+  const showToast = usePersistenceStore((s) => s.showToast)
   const copy = () => {
     const text = `# ${file.topic}\n\n${file.sections
       .map((s) => `## ${s.heading}\n\n${s.body}`)
       .join('\n\n')}`
     navigator.clipboard.writeText(text).then(
-      () => showToast('已复制 .gia 内容', 1600),
-      () => showToast('复制失败', 1600),
+      () => showToast('已复制 .gia 内容', 'success'),
+      () => showToast('复制失败', 'error'),
     )
   }
   const download = () => {
@@ -79,8 +79,8 @@ function FilePreview({ file }: { file: GiaFile }) {
 }
 
 export default function ProjectCenterView() {
-  const files = useBlueprint((s) => s.projectFiles)
-  const removeFile = useBlueprint((s) => s.removeProjectFile)
+  const files = useExecutionStore((s) => s.projectFiles)
+  const removeFile = (_id: string) => {}
   const [activeId, setActiveId] = useState<string | null>(
     files[0]?.id ?? null,
   )

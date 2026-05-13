@@ -1,4 +1,5 @@
-import type { NodeConfig } from './types'
+import type { NodeConfig } from '../types'
+import type { HotTopicCard, GiaFile } from './dispatch'
 
 export const NODE_IDS = {
   input: 'n-input',
@@ -56,7 +57,59 @@ export const GENERIC_AGENT_CONFIG: NodeConfig = {
   maxTokens: 1200,
 }
 
-/* ---------------- Mock fallbacks (used when no API key configured) ---------------- */
+/* ── Seed dashboard / project data ───────────────────────────────────────── */
+
+export const SEED_DASHBOARD_CARDS: HotTopicCard[] = [
+  {
+    id: 'seed-ugc-1',
+    source: 'external',
+    title: 'UGC 关卡：剑灵之路 · 通关率突破 38%',
+    hotScore: 87,
+    trend: 12,
+    summary: '新发布的玩家自制关卡今日热度激增，平均通关时长 4 分 12 秒，玩家好评率持续走高。',
+    tags: ['UGC', '关卡', '热度'],
+    createdAt: Date.now() - 3600 * 1000 * 2,
+  },
+  {
+    id: 'seed-ext-1',
+    source: 'external',
+    title: '外部热点：AI 工作流持续登顶产品榜',
+    hotScore: 92,
+    trend: 24,
+    summary: '过去 24 小时，多款 AI 工作流类产品在主流平台增长显著，搜索指数环比 +24%。',
+    tags: ['AI', '工作流', '增长'],
+    createdAt: Date.now() - 3600 * 1000 * 5,
+  },
+  {
+    id: 'seed-ugc-2',
+    source: 'external',
+    title: 'UGC 关卡：低谷镇副本 · 玩家停留时长创新高',
+    hotScore: 71,
+    trend: -6,
+    summary: '玩家平均停留 17 分钟，社交分享率 23%，建议补强后段奖励曲线以延续热度。',
+    tags: ['UGC', '副本', '复盘'],
+    createdAt: Date.now() - 3600 * 1000 * 11,
+  },
+]
+
+export const SEED_PROJECT_FILES: GiaFile[] = [
+  {
+    id: 'seed-gia-1',
+    filename: 'ugc_season3_brief_20260512.gia',
+    extension: '.gia',
+    topic: 'UGC S3 赛季策划纲要',
+    summary: 'S3 赛季围绕"玩家共创"主题，目标拉升日均创作量 +40%，新增三类协作工具。',
+    sections: [
+      { heading: '核心目标', body: '日均创作量 +40%，新增协作关卡比例 ≥15%' },
+      { heading: '新增工具', body: '实时协作编辑器、关卡模板市场、创作者成就系统' },
+      { heading: '风险项', body: '审核压力上升、内容质量方差加大、服务器负载评估' },
+    ],
+    wordCount: 120,
+    generatedAt: Date.now() - 86400 * 1000,
+  },
+]
+
+/* ── Mock fallbacks ──────────────────────────────────────────────────────── */
 
 export function mockOutline(topic: string): string {
   return [
