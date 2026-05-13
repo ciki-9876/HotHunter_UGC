@@ -16,6 +16,11 @@ export interface NodeConfig {
   systemPrompt: string
   /** May reference {input} (upstream output) and {topic} (root topic) */
   userPromptTemplate: string
+  /**
+   * Free-form supplementary instruction edited inline on the node card.
+   * Appended to the rendered user prompt at runtime, if non-empty.
+   */
+  extraPrompt?: string
   temperature: number
   maxTokens: number
   /** Optional per-node override. If null/undefined, uses global ProviderConfig. */

@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -7,9 +7,12 @@ import ReactFlow, {
   Position,
   ReactFlowProvider,
   getBezierPath,
+  useReactFlow,
   type EdgeProps,
   type Node,
   type NodeProps,
+  type OnConnectStart,
+  type OnConnectEnd,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import {
@@ -131,6 +134,11 @@ function AgentNode({ id, selected }: NodeProps) {
       s.nodeConfigs[id] ?? DEFAULT_NODE_CONFIGS[id] ?? GENERIC_AGENT_CONFIG,
   )
   const provider = useBlueprint((s) => s.provider)
+  const updateNodeConfig = useBlueprint((s) => s.updateNodeConfig)
+  const isRunning = useBlueprint((s) => s.isRunning)
+  const collapsed = useBlueprint((s) => s.collapsedNodes[id] ?? false)
+  const toggleCollapsed = useBlueprint((s) => s.toggleNodeCollapsed)
+  const setSelected = useBlueprint((s) => s.setSelected)
 
   const { icon, defaultLabel } = genericAgentMeta(id)
   const label = config.label || defaultLabel
@@ -139,24 +147,69 @@ function AgentNode({ id, selected }: NodeProps) {
 
   return (
     <div
-      className={`node-card ${statusClass(status)} ${
+      className={`node-card node-agent ${statusClass(status)} ${
         selected ? 'is-selected' : ''
       }`}
     >
+      {/* 1) 节点名称（含小字 model 行）*/}
       <div className="node-header">
         <span className="node-icon">{icon}</span>
-        <span className="node-title">{label}</span>
+        <div className="node-name-block">
+          <div className="node-title">{label}</div>
+          <div className="node-model-line">
+            {effectiveModel || '未配置模型'}
+            {overridden && <span className="badge-override">覆盖</span>}
+          </div>
+        </div>
         <span className="node-status-dot" />
       </div>
-      <div className="node-subtitle">
-        {effectiveModel || '未配置模型'}
-        {overridden && <span className="badge-override">覆盖</span>}
+
+      {/* 2) 补充提示词输入框 */}
+      <textarea
+        className="extra-prompt-input nodrag"
+        placeholder="补充提示词（选填）— 例如：风格更俏皮一点"
+        rows={2}
+        value={config.extraPrompt ?? ''}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) =>
+          updateNodeConfig(id, { extraPrompt: e.target.value })
+        }
+        disabled={isRunning}
+      />
+
+      {/* 3) 运行时输出内容（可收起）*/}
+      <div className="node-output">
+        <button
+          className="output-toggle nodrag"
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleCollapsed(id)
+          }}
+        >
+          <span className={`caret ${collapsed ? 'collapsed' : ''}`}>▾</span>
+          运行时输出
+        </button>
+        {!collapsed && (
+          <div className="node-output-body">
+            {summary || '等待上游输入…'}
+          </div>
+        )}
       </div>
-      <div className="node-body">{summary ?? '等待上游输入…'}</div>
+
+      {/* 4) 状态 + 点击配置 */}
       <div className="node-footer">
         <NodeStatusLabel status={status} />
-        <span className="hint-text">点击查看 · 双击配置</span>
+        <button
+          className="config-link nodrag"
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelected(id, 'config')
+          }}
+        >
+          ⚙ 点击配置
+        </button>
       </div>
+
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>
@@ -602,7 +655,9 @@ function Palette() {
       </button>
       <div className="palette-hint">
         · 拖动节点改位置
-        <br />· 拖 Handle 连线，选中边按 Delete 删除
+        <br />· 拖 Handle 连线
+        <br />· 拖到空白处自动建节点
+        <br />· 选中边按 Delete 删除
       </div>
     </div>
   )
@@ -630,8 +685,15 @@ function CanvasInner() {
   const applyNC = useBlueprint((s) => s.applyNodeChanges)
   const applyEC = useBlueprint((s) => s.applyEdgeChanges)
   const onConnect = useBlueprint((s) => s.onConnect)
+  const addAgentNodeAt = useBlueprint((s) => s.addAgentNodeAt)
   const setSelected = useBlueprint((s) => s.setSelected)
   const nodeResult = useBlueprint((s) => s.nodeResult)
+
+  const { screenToFlowPosition } = useReactFlow()
+  const connectStartRef = useRef<{
+    nodeId: string
+    handleType: 'source' | 'target'
+  } | null>(null)
 
   const decoratedNodes = nodes.map((n) => ({
     ...n,
@@ -664,6 +726,55 @@ function CanvasInner() {
     [setSelected],
   )
 
+  const onConnectStart: OnConnectStart = useCallback((_, params) => {
+    if (params.nodeId && params.handleType) {
+      connectStartRef.current = {
+        nodeId: params.nodeId,
+        handleType: params.handleType,
+      }
+    } else {
+      connectStartRef.current = null
+    }
+  }, [])
+
+  const onConnectEnd: OnConnectEnd = useCallback(
+    (event) => {
+      const start = connectStartRef.current
+      connectStartRef.current = null
+      if (!start) return
+
+      // Identify drop target: only fire if dropped on the pane (empty space),
+      // not on another handle. Handles have classes like
+      // 'react-flow__handle' / 'react-flow__node' — we want the bare pane.
+      const target = (event.target as HTMLElement) ?? null
+      const droppedOnPane =
+        !!target &&
+        (target.classList?.contains('react-flow__pane') ||
+          target.classList?.contains('react-flow__renderer'))
+      if (!droppedOnPane) return
+
+      // Pull viewport coordinates whether mouse or touch
+      let clientX: number
+      let clientY: number
+      if ('touches' in event && event.touches.length > 0) {
+        clientX = event.touches[0].clientX
+        clientY = event.touches[0].clientY
+      } else if ('changedTouches' in event && event.changedTouches.length > 0) {
+        clientX = event.changedTouches[0].clientX
+        clientY = event.changedTouches[0].clientY
+      } else {
+        clientX = (event as MouseEvent).clientX
+        clientY = (event as MouseEvent).clientY
+      }
+      const position = screenToFlowPosition({ x: clientX, y: clientY })
+      addAgentNodeAt(position, {
+        fromNodeId: start.nodeId,
+        handleType: start.handleType,
+      })
+    },
+    [screenToFlowPosition, addAgentNodeAt],
+  )
+
   return (
     <ReactFlow
       nodes={decoratedNodes}
@@ -673,6 +784,8 @@ function CanvasInner() {
       onNodesChange={applyNC}
       onEdgesChange={applyEC}
       onConnect={onConnect}
+      onConnectStart={onConnectStart}
+      onConnectEnd={onConnectEnd}
       onNodeClick={onNodeClick}
       onNodeDoubleClick={onNodeDoubleClick}
       onPaneClick={() => setSelected(null)}

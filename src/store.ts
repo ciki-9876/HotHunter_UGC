@@ -216,8 +216,20 @@ export interface BlueprintState {
   applyEdgeChanges: (changes: EdgeChange[]) => void
   onConnect: (conn: Connection) => void
   addAgentNode: (templateId?: string) => void
+  /**
+   * Create a generic Agent node at a specific canvas position, optionally
+   * wiring an edge to/from an existing node.
+   */
+  addAgentNodeAt: (
+    position: { x: number; y: number },
+    connection?: { fromNodeId: string; handleType: 'source' | 'target' },
+  ) => void
   addDispatchNode: (target?: DispatchTarget) => void
   setDispatchTarget: (id: string, target: DispatchTarget) => void
+
+  // ---- per-node UI state ----
+  collapsedNodes: Record<string, boolean>
+  toggleNodeCollapsed: (id: string) => void
 
   // ---- run state ----
   topic: string
@@ -388,8 +400,68 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
         nodeSummary: { ...s.nodeSummary, [id]: '等待上游输入…' },
       }
     })
-    get().showToast('已添加新 Agent 节点 — 双击可配置', 1800)
+    get().showToast('已添加新 Agent 节点 — 点击配置可调整', 1800)
   },
+
+  addAgentNodeAt: (position, connection) => {
+    const id = makeNodeId('agent')
+    const cfg: NodeConfig = { ...GENERIC_AGENT_CONFIG }
+    set((s) => {
+      const nextCfgs = { ...s.nodeConfigs, [id]: cfg }
+      persistNodeConfigs(nextCfgs)
+      // Offset so the cursor sits on the card center, not the corner
+      const newNode: Node = {
+        id,
+        type: 'genericAgent',
+        position: { x: position.x - 120, y: position.y - 60 },
+        data: {},
+      }
+      let nextEdges = s.edges
+      if (connection) {
+        const { fromNodeId, handleType } = connection
+        // handleType describes which side the *drag was started from*:
+        //   'source' → drag came out of a source handle, new node is the TARGET
+        //   'target' → drag came out of a target handle, new node is the SOURCE
+        const source =
+          handleType === 'source' ? fromNodeId : id
+        const target =
+          handleType === 'source' ? id : fromNodeId
+        if (source !== target) {
+          const dup = nextEdges.some(
+            (e) => e.source === source && e.target === target,
+          )
+          if (!dup) {
+            nextEdges = [
+              ...nextEdges,
+              {
+                id: `e-${source}-${target}-${Math.random()
+                  .toString(36)
+                  .slice(2, 6)}`,
+                source,
+                target,
+                type: 'flow',
+              },
+            ]
+          }
+        }
+      }
+      return {
+        nodes: [...s.nodes, newNode],
+        edges: nextEdges,
+        nodeConfigs: nextCfgs,
+        nodeStatus: { ...s.nodeStatus, [id]: 'idle' },
+        nodeResult: { ...s.nodeResult, [id]: '' },
+        nodeSummary: { ...s.nodeSummary, [id]: '等待上游输入…' },
+      }
+    })
+    get().showToast('已在落点创建并连接新 Agent 节点', 1800)
+  },
+
+  collapsedNodes: {},
+  toggleNodeCollapsed: (id) =>
+    set((s) => ({
+      collapsedNodes: { ...s.collapsedNodes, [id]: !s.collapsedNodes[id] },
+    })),
 
   addDispatchNode: (target = 'dashboard') => {
     const id = makeNodeId('dispatch')
@@ -664,10 +736,14 @@ export const useBlueprint = create<BlueprintState>((set, get) => ({
           DEFAULT_NODE_CONFIGS[nodeId] ??
           GENERIC_AGENT_CONFIG
         const resolved = resolveCfg(state.provider, cfg.override)
-        const userPrompt = fillTemplate(cfg.userPromptTemplate, {
+        let userPrompt = fillTemplate(cfg.userPromptTemplate, {
           topic,
           input: upstreamText || TOPIC_DEFAULTS[nodeId]?.() || topic,
         })
+        const extra = cfg.extraPrompt?.trim()
+        if (extra) {
+          userPrompt = `${userPrompt}\n\n额外要求：\n${extra}`
+        }
 
         set((s) => ({
           nodeStatus: { ...s.nodeStatus, [nodeId]: 'running' },

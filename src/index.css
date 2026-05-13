@@ -964,6 +964,146 @@ button {
 }
 
 /* ============================================================
+ * Agent node — new vertical layout
+ *   (1) name row · (2) extra prompt · (3) collapsible output · (4) status / config
+ * ============================================================ */
+.node-card.node-agent {
+  width: 260px;
+  padding-top: 12px;
+  padding-bottom: 10px;
+}
+.node-card.node-agent .node-header {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.node-card.node-agent .node-name-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.node-card.node-agent .node-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1f2c;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.node-card.node-agent .node-model-line {
+  font-size: 10.5px;
+  color: #6b7488;
+  letter-spacing: 0.2px;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-card .extra-prompt-input {
+  width: 100%;
+  background: #f9fafd;
+  border: 1px solid #e1e6f0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: #1a1f2c;
+  outline: none;
+  resize: none;
+  line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.node-card .extra-prompt-input::placeholder {
+  color: #98a0b5;
+}
+.node-card .extra-prompt-input:focus {
+  background: #ffffff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.14);
+}
+.node-card .extra-prompt-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.node-card .node-output {
+  margin-top: 8px;
+  background: #f5f7fb;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+  overflow: hidden;
+}
+.node-card .output-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: 11px;
+  color: #4a5366;
+  padding: 5px 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.node-card .output-toggle:hover {
+  background: #eef1f7;
+}
+.node-card .output-toggle .caret {
+  display: inline-block;
+  width: 10px;
+  transition: transform 0.18s ease;
+  color: var(--accent);
+}
+.node-card .output-toggle .caret.collapsed {
+  transform: rotate(-90deg);
+}
+.node-card .node-output-body {
+  padding: 4px 10px 8px;
+  font-size: 11.5px;
+  color: #4a5366;
+  line-height: 1.55;
+  max-height: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  border-top: 1px dashed #e3e7f0;
+}
+
+.node-card.node-agent .node-footer {
+  margin-top: 10px;
+}
+.node-card .config-link {
+  background: transparent;
+  border: 1px solid #d6dbe6;
+  color: #1a1f2c;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.node-card .config-link:hover {
+  background: #eef2ff;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The model-line override badge is smaller in the new header */
+.node-card.node-agent .node-model-line .badge-override {
+  margin-left: 4px;
+  font-size: 9px;
+  padding: 0 5px;
+}
+
+/* ============================================================
  * Dispatch node
  * ============================================================ */
 .node-card.node-dispatch {
