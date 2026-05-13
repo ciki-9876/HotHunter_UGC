@@ -46,7 +46,7 @@ import type { NodeConfig, ProviderConfig } from './agent/types'
 
 export type NodeStatus = 'idle' | 'running' | 'done' | 'error'
 export type PanelTab = 'result' | 'config'
-export type ViewTab = 'workflow' | 'dashboard' | 'project'
+export type ViewTab = 'workflow' | 'dashboard' | 'project' | 'tokens'
 
 export type CustomNodeKind =
   | 'topicInput'

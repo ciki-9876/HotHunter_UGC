@@ -5,6 +5,7 @@ import { PRESETS, presetById } from './agent/presets'
 import WorkflowView from './views/Workflow'
 import DashboardView from './views/Dashboard'
 import ProjectCenterView from './views/ProjectCenter'
+import TokensView from './views/Tokens'
 
 /* ============================================================
  *  Settings modal
@@ -177,6 +178,7 @@ const VIEW_TABS: { id: ViewTab; label: string; icon: string }[] = [
   { id: 'workflow', label: '工作流', icon: '⌘' },
   { id: 'dashboard', label: '数据看板', icon: '◧' },
   { id: 'project', label: '项目中心', icon: '▤' },
+  { id: 'tokens', label: '设计令牌', icon: '◇' },
 ]
 
 function TopBar() {
@@ -300,6 +302,7 @@ export default function App() {
         {view === 'workflow' && <WorkflowView />}
         {view === 'dashboard' && <DashboardView />}
         {view === 'project' && <ProjectCenterView />}
+        {view === 'tokens' && <TokensView />}
       </main>
       <SettingsModal />
       <Toast />
