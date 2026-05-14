@@ -637,6 +637,10 @@ input, textarea, select { font: inherit; color: inherit; }
 .form-row input[type='text'],
 .form-row input[type='password'],
 .form-row input[type='number'],
+.form-row input:not([type]),
+.form-row input[type='date'],
+.form-row input[type='email'],
+.form-row input[type='url'],
 .form-row select,
 .form-row textarea {
   width: 100%;
@@ -661,7 +665,10 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 .form-row input:focus,
 .form-row textarea:focus,
-.form-row select:focus {
+.form-row select:focus,
+.form-row input[type='text']:focus,
+.form-row input[type='password']:focus,
+.form-row input:not([type]):focus {
   border-color: var(--field-border-focus);
   box-shadow: var(--field-focus-ring);
 }
@@ -2629,4 +2636,64 @@ textarea.field-input { height: auto; padding: 8px 10px; resize: vertical; line-h
   padding: var(--s-4) var(--s-6);
   border-top: 0.5px solid var(--border-subtle);
   flex-shrink: 0;
+}
+
+/* ── 全局兜底：确保任何 .form-row 内的 input 都命中令牌样式 ─────── */
+/* 修复原因：React 的 <input> 不写 type 时浏览器虽然默认 text，但
+   CSS attribute selector [type='text'] 必须显式声明才能匹配
+   通过 :not([type]) + 具体 type 全覆盖解决 */
+.form-row input {
+  width: 100%;
+  background: var(--field-bg);
+  border: 0.5px solid var(--field-border);
+  border-radius: var(--field-radius);
+  padding: 8px 10px;
+  color: var(--field-fg);
+  font-size: var(--field-fs);
+  font-family: var(--font-text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+.form-row input:focus {
+  border-color: var(--field-border-focus);
+  box-shadow: var(--field-focus-ring);
+}
+/* 同样兜底 .modal-body 内（适用于 SettingsModal 这类自定义 modal） */
+.modal-body .form-row input,
+.modal-body .form-row select,
+.modal-body .form-row textarea {
+  background: var(--field-bg);
+  border: 0.5px solid var(--field-border);
+  border-radius: var(--field-radius);
+  padding: 8px 10px;
+  color: var(--field-fg);
+  font-size: var(--field-fs);
+  font-family: var(--font-text);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.modal-body .form-row input:focus,
+.modal-body .form-row select:focus,
+.modal-body .form-row textarea:focus {
+  border-color: var(--field-border-focus);
+  box-shadow: var(--field-focus-ring);
+}
+/* key-row 内的 input（API Key 那行）*/
+.key-row input {
+  flex: 1;
+  background: var(--field-bg);
+  border: 0.5px solid var(--field-border);
+  border-radius: var(--field-radius);
+  padding: 8px 10px;
+  color: var(--field-fg);
+  font-size: var(--field-fs);
+  font-family: var(--font-text);
+  outline: none;
+}
+.key-row input:focus {
+  border-color: var(--field-border-focus);
+  box-shadow: var(--field-focus-ring);
 }
