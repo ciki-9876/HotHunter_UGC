@@ -7,6 +7,7 @@ import ProjectCenterView from './views/ProjectCenter'
 import TokensView from './views/Tokens'
 import DauView from './views/DauView'
 import LevelCenter from './views/LevelCenter'
+import CreatorCenter from './views/CreatorCenter'
 import KnowledgeBase from './views/KnowledgeBase'
 import Lab from './views/Lab'
 import SettingsView from './views/Settings'
@@ -115,11 +116,9 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
     { id: 'workflow'      as const, icon: '⬡', label: '工作流' },
     { id: 'dau'           as const, icon: '◈', label: '大盘数据' },
     { id: 'level-center'  as const, icon: '◫', label: '关卡中心' },
+    { id: 'creator'       as const, icon: '👥', label: '创作者运营' },
     { id: 'knowledge'     as const, icon: '📚', label: '知识库' },
     { id: 'lab'           as const, icon: '🧪', label: '实验室' },
-    { id: 'dashboard'     as const, icon: '▣', label: '数据看板', badge: dashboardCards.length },
-    { id: 'project'       as const, icon: '▤', label: '项目中心', badge: projectFiles.length },
-    { id: 'tokens'        as const, icon: '◎', label: '设计令牌' },
     { id: 'settings'      as const, icon: '⚙️', label: '系统管理' },
   ]
 
@@ -136,8 +135,8 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
             onClick={() => setView(t.id)}>
             <span className="view-tab-icon">{t.icon}</span>
             {t.label}
-            {t.badge !== undefined && (
-              <span className="view-tab-badge">{t.badge}</span>
+            {'badge' in t && t.badge !== undefined && (
+              <span className="view-tab-badge">{(t as any).badge}</span>
             )}
           </button>
         ))}
@@ -169,12 +168,13 @@ export default function App() {
         {view === 'workflow'      && <WorkflowView />}
         {view === 'dau'           && <DauView />}
         {view === 'level-center'  && <LevelCenter />}
+        {view === 'creator'       && <CreatorCenter />}
         {view === 'knowledge'     && <KnowledgeBase />}
         {view === 'lab'           && <Lab />}
+        {view === 'settings'      && <SettingsView />}
         {view === 'dashboard'     && <DashboardView />}
         {view === 'project'       && <ProjectCenterView />}
         {view === 'tokens'        && <TokensView />}
-        {view === 'settings'      && <SettingsView />}
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ToastLayer />

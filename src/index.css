@@ -5,6 +5,8 @@
    3) Component  — every component reads ONLY from these
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
 :root {
   /* ─────────────────────────── 1. PRIMITIVES ─────────────────── */
 
@@ -37,9 +39,10 @@
   --c-purple-100:  oklch(94%    0.04   290);
 
   /* Typography */
-  --font-display: -apple-system, "SF Pro Display", "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
-  --font-text:    -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
-  --font-mono:    "SF Mono", ui-monospace, "Menlo", "Consolas", monospace;
+  /* Typography — Geist (圆润现代，中英文混排优秀) */
+  --font-display: "Geist", "Noto Sans SC", -apple-system, "PingFang SC", system-ui, sans-serif;
+  --font-text:    "Geist", "Noto Sans SC", -apple-system, "PingFang SC", system-ui, sans-serif;
+  --font-mono:    "Geist Mono", ui-monospace, "SF Mono", "Menlo", monospace;
 
   --fs-10: 10px;
   --fs-11: 11px;
@@ -2565,4 +2568,65 @@ input, textarea, select { font: inherit; color: inherit; }
   .radius-grid { grid-template-columns: repeat(3, 1fr); }
   .anatomy-card { grid-template-columns: 1fr; }
   .anatomy-preview { border-right: 0; border-bottom: 0.5px solid var(--border-subtle); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   共用迁移组件样式 — 严格使用设计令牌
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 通用 Input / Select ── */
+.field-input {
+  height: var(--field-height);
+  background: var(--field-bg);
+  border: 0.5px solid var(--field-border);
+  border-radius: var(--field-radius);
+  padding: 0 10px;
+  font-size: var(--field-fs);
+  font-family: var(--font-text);
+  color: var(--field-fg);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.field-input:focus { border-color: var(--field-border-focus); box-shadow: var(--field-focus-ring); }
+.field-input:disabled { background: var(--field-bg-disabled); color: var(--text-quaternary); cursor: not-allowed; }
+select.field-input { cursor: pointer; }
+textarea.field-input { height: auto; padding: 8px 10px; resize: vertical; line-height: var(--lh-base); }
+
+/* ── Modal ── */
+.modal-card {
+  background: var(--modal-bg);
+  border-radius: var(--modal-radius);
+  box-shadow: var(--modal-shadow);
+  width: var(--modal-width);
+  max-width: 96vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 0.5px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.modal-title { font-size: var(--fs-15); font-weight: var(--fw-semi); color: var(--text-primary); flex: 1; }
+.modal-subtitle { font-size: var(--fs-12); color: var(--text-tertiary); }
+.close-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-tertiary); font-size: var(--fs-15); padding: 4px;
+  border-radius: var(--r-4); line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.close-btn:hover { color: var(--text-primary); background: var(--c-neutral-100); }
+.modal-body { padding: var(--s-6); overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: var(--s-4); }
+.modal-footer {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-4) var(--s-6);
+  border-top: 0.5px solid var(--border-subtle);
+  flex-shrink: 0;
 }
