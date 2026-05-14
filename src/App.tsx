@@ -7,6 +7,9 @@ import ProjectCenterView from './views/ProjectCenter'
 import TokensView from './views/Tokens'
 import DauView from './views/DauView'
 import LevelCenter from './views/LevelCenter'
+import KnowledgeBase from './views/KnowledgeBase'
+import Lab from './views/Lab'
+import SettingsView from './views/Settings'
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */
 function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -112,9 +115,12 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
     { id: 'workflow'      as const, icon: '⬡', label: '工作流' },
     { id: 'dau'           as const, icon: '◈', label: '大盘数据' },
     { id: 'level-center'  as const, icon: '◫', label: '关卡中心' },
+    { id: 'knowledge'     as const, icon: '📚', label: '知识库' },
+    { id: 'lab'           as const, icon: '🧪', label: '实验室' },
     { id: 'dashboard'     as const, icon: '▣', label: '数据看板', badge: dashboardCards.length },
     { id: 'project'       as const, icon: '▤', label: '项目中心', badge: projectFiles.length },
     { id: 'tokens'        as const, icon: '◎', label: '设计令牌' },
+    { id: 'settings'      as const, icon: '⚙️', label: '系统管理' },
   ]
 
   return (
@@ -163,9 +169,12 @@ export default function App() {
         {view === 'workflow'      && <WorkflowView />}
         {view === 'dau'           && <DauView />}
         {view === 'level-center'  && <LevelCenter />}
+        {view === 'knowledge'     && <KnowledgeBase />}
+        {view === 'lab'           && <Lab />}
         {view === 'dashboard'     && <DashboardView />}
         {view === 'project'       && <ProjectCenterView />}
         {view === 'tokens'        && <TokensView />}
+        {view === 'settings'      && <SettingsView />}
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ToastLayer />
