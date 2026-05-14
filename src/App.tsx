@@ -10,6 +10,7 @@ import LevelCenter from './views/LevelCenter'
 import CreatorCenter from './views/CreatorCenter'
 import KnowledgeBase from './views/KnowledgeBase'
 import Lab from './views/Lab'
+import AgentCluster from './views/AgentCluster'
 import SettingsView from './views/Settings'
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */
@@ -113,13 +114,14 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
   const isRunning      = useExecutionStore((s) => s.isRunning)
 
   const tabs = [
-    { id: 'workflow'      as const, icon: '⬡', label: '工作流' },
-    { id: 'dau'           as const, icon: '◈', label: '大盘数据' },
-    { id: 'level-center'  as const, icon: '◫', label: '关卡中心' },
-    { id: 'creator'       as const, icon: '👥', label: '创作者运营' },
-    { id: 'knowledge'     as const, icon: '📚', label: '知识库' },
-    { id: 'lab'           as const, icon: '🧪', label: '实验室' },
-    { id: 'settings'      as const, icon: '⚙️', label: '系统管理' },
+    { id: 'workflow'       as const, icon: '⬡', label: '工作流' },
+    { id: 'dau'            as const, icon: '◈', label: '大盘数据' },
+    { id: 'level-center'   as const, icon: '◫', label: '关卡中心' },
+    { id: 'creator'        as const, icon: '👥', label: '创作者运营' },
+    { id: 'knowledge'      as const, icon: '📚', label: '知识库' },
+    { id: 'lab'            as const, icon: '🧪', label: '实验室' },
+    { id: 'agent-cluster'  as const, icon: '⚡', label: 'Agent 集群' },
+    { id: 'settings'       as const, icon: '⚙️', label: '系统管理' },
   ]
 
   return (
@@ -171,6 +173,7 @@ export default function App() {
         {view === 'creator'       && <CreatorCenter />}
         {view === 'knowledge'     && <KnowledgeBase />}
         {view === 'lab'           && <Lab />}
+        {view === 'agent-cluster' && <AgentCluster />}
         {view === 'settings'      && <SettingsView />}
         {view === 'dashboard'     && <DashboardView />}
         {view === 'project'       && <ProjectCenterView />}
