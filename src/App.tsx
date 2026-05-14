@@ -5,6 +5,8 @@ import WorkflowView from './views/Workflow'
 import DashboardView from './views/Dashboard'
 import ProjectCenterView from './views/ProjectCenter'
 import TokensView from './views/Tokens'
+import DauView from './views/DauView'
+import LevelCenter from './views/LevelCenter'
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */
 function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -107,10 +109,12 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
   const isRunning      = useExecutionStore((s) => s.isRunning)
 
   const tabs = [
-    { id: 'workflow'  as const, icon: '⬡', label: '工作流' },
-    { id: 'dashboard' as const, icon: '▣', label: '数据看板', badge: dashboardCards.length },
-    { id: 'project'   as const, icon: '◫', label: '项目中心', badge: projectFiles.length },
-    { id: 'tokens'    as const, icon: '◈', label: '设计令牌' },
+    { id: 'workflow'      as const, icon: '⬡', label: '工作流' },
+    { id: 'dau'           as const, icon: '◈', label: '大盘数据' },
+    { id: 'level-center'  as const, icon: '◫', label: '关卡中心' },
+    { id: 'dashboard'     as const, icon: '▣', label: '数据看板', badge: dashboardCards.length },
+    { id: 'project'       as const, icon: '▤', label: '项目中心', badge: projectFiles.length },
+    { id: 'tokens'        as const, icon: '◎', label: '设计令牌' },
   ]
 
   return (
@@ -156,10 +160,12 @@ export default function App() {
     <div className="app-shell">
       <TopBar onSettings={() => setSettingsOpen(true)} />
       <main className="app-main">
-        {view === 'workflow'  && <WorkflowView />}
-        {view === 'dashboard' && <DashboardView />}
-        {view === 'project'   && <ProjectCenterView />}
-        {view === 'tokens'    && <TokensView />}
+        {view === 'workflow'      && <WorkflowView />}
+        {view === 'dau'           && <DauView />}
+        {view === 'level-center'  && <LevelCenter />}
+        {view === 'dashboard'     && <DashboardView />}
+        {view === 'project'       && <ProjectCenterView />}
+        {view === 'tokens'        && <TokensView />}
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ToastLayer />

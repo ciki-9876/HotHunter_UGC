@@ -99,6 +99,12 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    proxy: {
+      '/api': 'http://localhost:8066',
+      '/workflows': 'http://localhost:8066',
+      '/runs': 'http://localhost:8066',
+      '/webhooks': 'http://localhost:8066',
+    },
   },
   preview: {
     port: 5174,

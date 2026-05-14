@@ -9,7 +9,7 @@ import {
 import type { NodeConfig } from '../types'
 import type { Node, Edge } from 'reactflow'
 
-export type ViewTab = 'workflow' | 'dashboard' | 'project' | 'tokens'
+export type ViewTab = 'workflow' | 'dashboard' | 'project' | 'tokens' | 'dau' | 'level-center'
 export type PanelTab = 'result' | 'config'
 
 interface Toast {
