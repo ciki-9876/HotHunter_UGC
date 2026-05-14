@@ -38,6 +38,17 @@ export interface NodeConfig {
   override?: Partial<ProviderConfig>
   /** For http_request / miliastra nodes */
   apiConfig?: HttpApiConfig
+  /** Echo Agent 配置（agent节点专用） */
+  echoAgentId?: string
+  echoApiKey?: string
+  echoBaseUrl?: string
+  connectionScope?: 'shared' | 'custom'
+  /** 代码工具节点 */
+  codeLanguage?: 'python' | 'javascript'
+  code?: string
+  codeTimeout?: number
+  /** 模块输出节点 */
+  targetModule?: string
 }
 
 export interface HttpApiConfig {

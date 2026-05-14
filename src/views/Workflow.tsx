@@ -338,6 +338,108 @@ function MiliastraNode({ id, selected }: NodeProps) {
   )
 }
 
+/* ── Code Tool Node ─────────────────────────────────────────────────────── */
+function CodeToolNode({ id, selected }: NodeProps) {
+  const status  = useExecutionStore((s) => s.nodeStatus[id])
+  const cfg     = useConfigStore((s) => s.getNodeConfig(id))
+  const selectNode = useGraphStore((s) => s.selectNode)
+  const setPanelTab = usePersistenceStore((s) => s.setPanelTab)
+  const lang    = cfg.codeLanguage ?? 'python'
+  const accent  = 'oklch(62% 0.18 150)'   // green-500
+
+  return (
+    <div className={`node-card node-agent ${statusClass(status)} ${selected ? 'is-selected' : ''}`}
+         style={{ borderTop: `2px solid ${accent}` }}>
+      <div className="node-header">
+        <div className="node-icon" style={{ background: `oklch(62% 0.18 150 / 0.12)`, color: accent, fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{'{ }'}</div>
+        <div className="node-name-block">
+          <div className="node-title">{cfg.label || '代码工具'}</div>
+          <div className="node-subtitle">{lang === 'python' ? 'Python' : 'JavaScript'} 脚本</div>
+        </div>
+        <div className="node-status-dot" />
+      </div>
+      <div className="node-footer">
+        <StatusPill status={status} />
+        <button className="config-link nodrag" onClick={() => { selectNode(id); setPanelTab('config') }}>⚙ 配置</button>
+      </div>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+    </div>
+  )
+}
+
+/* ── Module Output Node ─────────────────────────────────────────────────── */
+function ModuleOutputNode({ id, selected }: NodeProps) {
+  const status  = useExecutionStore((s) => s.nodeStatus[id])
+  const cfg     = useConfigStore((s) => s.getNodeConfig(id))
+  const accent  = 'oklch(72% 0.18 60)'   // orange-500
+  const MODULE_LABELS: Record<string, string> = {
+    dau: '大盘数据', 'level-center': '关卡中心', creator: '创作者运营',
+    knowledge: '知识库', lab: '实验室', hotspot: '热点看板',
+  }
+  const target = cfg.targetModule ?? 'dau'
+
+  return (
+    <div className={`node-card node-agent ${statusClass(status)} ${selected ? 'is-selected' : ''}`}
+         style={{ borderTop: `2px solid ${accent}` }}>
+      <div className="node-header">
+        <div className="node-icon" style={{ background: `oklch(72% 0.18 60 / 0.12)`, color: accent, fontSize: 16 }}>↗</div>
+        <div className="node-name-block">
+          <div className="node-title">{cfg.label || '模块输出'}</div>
+          <div className="node-subtitle">→ {MODULE_LABELS[target] ?? target}</div>
+        </div>
+        <div className="node-status-dot" />
+      </div>
+      <div className="node-footer"><StatusPill status={status} /></div>
+      <Handle type="target" position={Position.Left} />
+    </div>
+  )
+}
+
+/* ── Loop Node ──────────────────────────────────────────────────────────── */
+function LoopNode({ id, selected }: NodeProps) {
+  const status  = useExecutionStore((s) => s.nodeStatus[id])
+  const accent  = 'oklch(62% 0.18 290)'
+  return (
+    <div className={`node-card ${statusClass(status)} ${selected ? 'is-selected' : ''}`}
+         style={{ borderTop: `2px solid ${accent}` }}>
+      <div className="node-header">
+        <div className="node-icon" style={{ background: `oklch(62% 0.18 290 / 0.12)`, color: accent, fontSize: 18 }}>↻</div>
+        <div className="node-name-block">
+          <div className="node-title">循环</div>
+          <div className="node-subtitle">逐项处理数组</div>
+        </div>
+        <div className="node-status-dot" />
+      </div>
+      <div className="node-footer"><StatusPill status={status} /></div>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+    </div>
+  )
+}
+
+/* ── Notify Node ────────────────────────────────────────────────────────── */
+function NotifyNode({ id, selected }: NodeProps) {
+  const status  = useExecutionStore((s) => s.nodeStatus[id])
+  const cfg     = useConfigStore((s) => s.getNodeConfig(id))
+  const accent  = 'oklch(62% 0.18 250)'
+  return (
+    <div className={`node-card ${statusClass(status)} ${selected ? 'is-selected' : ''}`}
+         style={{ borderTop: `2px solid ${accent}` }}>
+      <div className="node-header">
+        <div className="node-icon" style={{ background: `oklch(62% 0.18 250 / 0.12)`, color: accent, fontSize: 16 }}>📨</div>
+        <div className="node-name-block">
+          <div className="node-title">{cfg.label || '发送通知'}</div>
+          <div className="node-subtitle">Wave / Email</div>
+        </div>
+        <div className="node-status-dot" />
+      </div>
+      <div className="node-footer"><StatusPill status={status} /></div>
+      <Handle type="target" position={Position.Left} />
+    </div>
+  )
+}
+
 function HumanApprovalNode({ id, selected }: NodeProps) {
   const status  = useExecutionStore((s) => s.nodeStatus[id])
   const summary = useExecutionStore((s) => s.nodeSummary[id])
@@ -389,19 +491,28 @@ function ConditionNode({ id, selected }: NodeProps) {
 
 /* ── Node type map ──────────────────────────────────────────────────────────── */
 const nodeTypes: Record<string, React.ComponentType<NodeProps<any>>> = {
+  // 触发器
   topicInput:          TopicInputNode,
+  // 核心三类
+  agent:               AgentNode,
+  code_tool:           CodeToolNode,
+  module_output:       ModuleOutputNode,
+  // 辅助四类
+  condition:           ConditionNode,
+  loop:                LoopNode,
+  human_approval:      HumanApprovalNode,
+  notify:              NotifyNode,
+  // 兼容保留（旧快照）
   outputNode:          OutputNode,
   criticNode:          CriticNodeComponent,
   dispatchNode:        DispatchNodeComponent,
-  human_approval:      HumanApprovalNode,
-  condition:           ConditionNode,
+  // 兼容旧快照 (mapped to existing components)
   outlineAgent:        AgentNode,
   writerAgent:         AgentNode,
   editorAgent:         AgentNode,
   genericAgent:        AgentNode,
   llm:                 AgentNode,
   http_request:        AgentNode,
-  notify:              AgentNode,
   hotspot_fetch:       MiliastraNode,
   hotspot_score:       MiliastraNode,
   hotspot_classify:    MiliastraNode,
@@ -486,36 +597,125 @@ function SidePanel() {
                   onChange={(e) => updateNodeConfig(selectedNodeId!, { label: e.target.value })} />
               </div>
 
-              {node && !['dispatchNode', 'criticNode', 'condition', 'human_approval'].includes(node.type ?? '') && (
+              {/* ── LLM Prompt 配置（agent / 兼容旧节点）─────────────────── */}
+              {node && !['dispatchNode', 'criticNode', 'condition', 'human_approval',
+                          'code_tool', 'module_output', 'loop', 'notify'].includes(node.type ?? '') && (
                 <>
-                  <div className="form-row">
-                    <label>System Prompt</label>
-                    <textarea rows={4} value={cfg.systemPrompt}
-                      onChange={(e) => updateNodeConfig(selectedNodeId!, { systemPrompt: e.target.value })} />
-                  </div>
-                  <div className="form-row">
-                    <label>User Prompt 模板
-                      <span style={{ color: 'var(--text-tertiary)', marginLeft: 6 }}>( {'{topic}'} / {'{input}'} )</span>
-                    </label>
-                    <textarea rows={3} value={cfg.userPromptTemplate}
-                      onChange={(e) => updateNodeConfig(selectedNodeId!, { userPromptTemplate: e.target.value })} />
-                  </div>
-                  <div className="form-row-split">
+                  <div className="form-section">
+                    <div className="form-section-title">Prompt 配置</div>
                     <div className="form-row">
-                      <label>Temperature</label>
-                      <input type="number" min={0} max={2} step={0.1} value={cfg.temperature}
-                        onChange={(e) => updateNodeConfig(selectedNodeId!, { temperature: parseFloat(e.target.value) || 0.7 })} />
+                      <label>System Prompt</label>
+                      <textarea rows={4} value={cfg.systemPrompt}
+                        onChange={(e) => updateNodeConfig(selectedNodeId!, { systemPrompt: e.target.value })} />
                     </div>
                     <div className="form-row">
-                      <label>Max Tokens</label>
-                      <input type="number" min={100} max={8000} step={100} value={cfg.maxTokens}
-                        onChange={(e) => updateNodeConfig(selectedNodeId!, { maxTokens: parseInt(e.target.value) || 2000 })} />
+                      <label>User Prompt 模板
+                        <span style={{ color: 'var(--text-tertiary)', marginLeft: 6, fontWeight: 400 }}>（支持 {'{topic}'} / {'{input}'}）</span>
+                      </label>
+                      <textarea rows={3} value={cfg.userPromptTemplate}
+                        onChange={(e) => updateNodeConfig(selectedNodeId!, { userPromptTemplate: e.target.value })} />
+                    </div>
+                    <div className="form-row-split">
+                      <div className="form-row">
+                        <label>Temperature</label>
+                        <input type="number" min={0} max={2} step={0.1} value={cfg.temperature}
+                          onChange={(e) => updateNodeConfig(selectedNodeId!, { temperature: parseFloat(e.target.value) || 0.7 })} />
+                      </div>
+                      <div className="form-row">
+                        <label>Max Tokens</label>
+                        <input type="number" min={100} max={32000} step={100} value={cfg.maxTokens}
+                          onChange={(e) => updateNodeConfig(selectedNodeId!, { maxTokens: parseInt(e.target.value) || 2000 })} />
+                      </div>
                     </div>
                   </div>
                 </>
               )}
 
-              {/* API config */}
+              {/* ── Echo Agent 配置（agent 节点专用）────────────────────── */}
+              {node?.type === 'agent' && (
+                <div className="form-section">
+                  <div className="form-section-title">Echo Agent 配置</div>
+                  <div className="form-row">
+                    <label>EchoAgent ID</label>
+                    <div className="key-row">
+                      <input value={cfg.echoAgentId ?? ''} placeholder="agent_xxxxxxxx（留空则走 LLM 直连）"
+                        onChange={(e) => updateNodeConfig(selectedNodeId!, { echoAgentId: e.target.value })} />
+                    </div>
+                    <span className="form-hint">绑定后优先走 Echo Agent，忽略下方 LLM 直连配置</span>
+                  </div>
+                  <div className="form-row">
+                    <label>连接策略</label>
+                    <select value={cfg.connectionScope ?? 'shared'}
+                      onChange={(e) => updateNodeConfig(selectedNodeId!, { connectionScope: e.target.value as any })}>
+                      <option value="shared">复用系统管理中的共享连接（推荐）</option>
+                      <option value="custom">本节点独立 Echo API Key</option>
+                    </select>
+                  </div>
+                  {cfg.connectionScope === 'custom' && (
+                    <div className="form-row">
+                      <label>Echo API Key（本节点专用）</label>
+                      <input type="password" value={cfg.echoApiKey ?? ''} placeholder="留空则复用共享连接"
+                        onChange={(e) => updateNodeConfig(selectedNodeId!, { echoApiKey: e.target.value })} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── 代码工具配置 ─────────────────────────────────────────── */}
+              {node?.type === 'code_tool' && (
+                <div className="form-section">
+                  <div className="form-section-title">代码配置</div>
+                  <div className="form-row">
+                    <label>语言</label>
+                    <select value={cfg.codeLanguage ?? 'python'}
+                      onChange={(e) => updateNodeConfig(selectedNodeId!, { codeLanguage: e.target.value as 'python' | 'javascript' })}>
+                      <option value="python">Python</option>
+                      <option value="javascript">JavaScript</option>
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <label>代码</label>
+                    <textarea rows={10} value={cfg.code ?? ''}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', lineHeight: 1.6 }}
+                      placeholder={cfg.codeLanguage === 'javascript'
+                        ? 'async function main(inputs) {\n  return { output: inputs };\n}'
+                        : 'def main(inputs: dict) -> dict:\n    return {"output": inputs}'}
+                      onChange={(e) => updateNodeConfig(selectedNodeId!, { code: e.target.value })} />
+                    <span className="form-hint">
+                      {cfg.codeLanguage === 'javascript'
+                        ? '入口函数：async function main(inputs) { return { ... } }'
+                        : '入口函数：def main(inputs: dict) -> dict: return { ... }'}
+                    </span>
+                  </div>
+                  <div className="form-row">
+                    <label>超时（秒）</label>
+                    <input type="number" min={1} max={300} value={cfg.codeTimeout ?? 30}
+                      onChange={(e) => updateNodeConfig(selectedNodeId!, { codeTimeout: parseInt(e.target.value) || 30 })} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── 模块输出配置 ─────────────────────────────────────────── */}
+              {node?.type === 'module_output' && (
+                <div className="form-section">
+                  <div className="form-section-title">输出目标配置</div>
+                  <div className="form-row">
+                    <label>目标模块</label>
+                    <select value={cfg.targetModule ?? 'dau'}
+                      onChange={(e) => updateNodeConfig(selectedNodeId!, { targetModule: e.target.value })}>
+                      <option value="dau">大盘数据</option>
+                      <option value="level-center">关卡中心</option>
+                      <option value="creator">创作者运营</option>
+                      <option value="knowledge">知识库</option>
+                      <option value="lab">实验室</option>
+                      <option value="hotspot">热点专项看板</option>
+                    </select>
+                    <span className="form-hint">工作流完成后，结果将推送到所选模块页面</span>
+                  </div>
+                </div>
+              )}
+
+              {/* ── API config（http_request / miliastra 兼容保留）────────── */}
               {(node?.type === 'http_request' || nodeDef?.category === 'miliastra') && (() => {
                 const api = cfg.apiConfig
                 if (!api) return null
