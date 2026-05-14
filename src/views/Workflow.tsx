@@ -9,6 +9,7 @@ import 'reactflow/dist/style.css'
 
 import { useGraphStore, useConfigStore, useExecutionStore, usePersistenceStore } from '../store'
 import { getNodeDef, getNodeDefsByCategory } from '../nodes/registry'
+import type { NodeDefinition } from '../types'
 import { autoLayout } from '../agent/layout'
 import { DEFAULT_CRITIC_DATA, type CriticNodeData } from '../agent/critic'
 import type { DispatchNodeData } from '../store/executionStore'
@@ -618,10 +619,11 @@ function Palette() {
   const [saveName, setSaveName] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const platformNodes = getNodeDefsByCategory('platform').filter((d) =>
-    !['topicInput','outputNode','dispatchNode','criticNode','outlineAgent','writerAgent','editorAgent'].includes(d.type)
-  )
-  const miliastraNodes = getNodeDefsByCategory('miliastra')
+  // V3.1：只在 Palette 展示 3 类核心节点 + 4 类辅助节点
+  const CORE_TYPES    = ['agent', 'code_tool', 'module_output']
+  const ASSIST_TYPES  = ['condition', 'loop', 'human_approval', 'notify']
+  const coreNodes    = CORE_TYPES.map((t) => getNodeDef(t)).filter(Boolean) as NodeDefinition[]
+  const assistNodes  = ASSIST_TYPES.map((t) => getNodeDef(t)).filter(Boolean) as NodeDefinition[]
 
   if (collapsed) {
     return (
@@ -660,20 +662,14 @@ function Palette() {
           {openSections.add && (
             <div className="palette-section-body">
               <div style={{ padding: '2px 8px 3px', fontSize: 'var(--fs-11)', fontWeight: 600, color: 'var(--text-tertiary)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                平台通用
+                核心节点
               </div>
-              {platformNodes.map((d) => nodeBtn(d.type, d.icon, d.title, d.accentColor))}
-
-              <div style={{ padding: '6px 8px 3px', fontSize: 'var(--fs-11)', fontWeight: 600, color: '#FF375F', letterSpacing: '0.06em', textTransform: 'uppercase', borderTop: '0.5px solid var(--border-subtle)', marginTop: 4 }}>
-                千星专属
-              </div>
-              {miliastraNodes.map((d) => nodeBtn(d.type, d.icon, d.title, d.accentColor))}
+              {coreNodes.map((d) => nodeBtn(d.type, d.icon, d.title, d.accentColor))}
 
               <div style={{ padding: '6px 8px 3px', fontSize: 'var(--fs-11)', fontWeight: 600, color: 'var(--text-tertiary)', letterSpacing: '0.06em', textTransform: 'uppercase', borderTop: '0.5px solid var(--border-subtle)', marginTop: 4 }}>
-                特殊节点
+                辅助节点
               </div>
-              {nodeBtn('dispatchNode', '↩', '输出回传')}
-              {nodeBtn('criticNode', '⚖', '评审 Critic')}
+              {assistNodes.map((d) => nodeBtn(d.type, d.icon, d.title, d.accentColor))}
             </div>
           )}
         </div>
