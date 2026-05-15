@@ -793,7 +793,9 @@ function SidePanel() {
 /* ═══════════════════════════════════════════════════════════════════════════
  *  Palette — uses .palette / .palette-head / .palette-section / .palette-btn
  * ═══════════════════════════════════════════════════════════════════════════ */
-function Palette() {
+function Palette({ canUndo, canRedo, onUndo, onRedo }: {
+  canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void
+}) {
   const addNodeOfType  = useGraphStore((s) => s.addNodeOfType)
   const setNodes       = useGraphStore((s) => s.setNodes)
   const nodes          = useGraphStore((s) => s.nodes)
@@ -849,6 +851,12 @@ function Palette() {
     <aside className="palette">
       <div className="palette-head">
         <span className="palette-head-title">节点面板</span>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', marginRight: 4 }}>
+          <button title="撤销 (Ctrl+Z)" onClick={onUndo} disabled={!canUndo}
+            style={{ background: 'none', border: 'none', cursor: canUndo ? 'pointer' : 'not-allowed', color: canUndo ? 'var(--text-secondary)' : 'var(--text-quaternary)', fontSize: 14, padding: '3px 5px', borderRadius: 4, lineHeight: 1, transition: 'color 0.15s' }}>↩</button>
+          <button title="重做 (Ctrl+Y)" onClick={onRedo} disabled={!canRedo}
+            style={{ background: 'none', border: 'none', cursor: canRedo ? 'pointer' : 'not-allowed', color: canRedo ? 'var(--text-secondary)' : 'var(--text-quaternary)', fontSize: 14, padding: '3px 5px', borderRadius: 4, lineHeight: 1, transition: 'color 0.15s' }}>↪</button>
+        </div>
         <button className="palette-fold-btn" onClick={() => setCollapsed(true)}>◀</button>
       </div>
 
@@ -962,7 +970,18 @@ export default function WorkflowView() {
   const deleteNode  = useGraphStore((s) => s.deleteNode)
   const selectNode  = useGraphStore((s) => s.selectNode)
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId)
+  const canUndo     = useGraphStore((s) => s.canUndo)
+  const canRedo     = useGraphStore((s) => s.canRedo)
+  const undo        = useGraphStore((s) => s.undo)
+  const redo        = useGraphStore((s) => s.redo)
   const nodeStatus  = useExecutionStore((s) => s.nodeStatus)
+
+  // ── 节点选择器弹窗状态 ─────────────────────────────────────────
+  const [picker, setPicker] = useState<{
+    x: number; y: number        // 画布坐标（用于创建节点）
+    sx: number; sy: number      // 屏幕坐标（用于弹窗定位）
+    connection?: { fromNodeId: string; handleType: 'source' | 'target' }
+  } | null>(null)
 
   const decoratedNodes = nodes.map((n) => ({
     ...n,
@@ -973,37 +992,73 @@ export default function WorkflowView() {
     selectNode(node.id)
   }, [selectNode])
 
-  const onPaneClick = useCallback(() => selectNode(null), [selectNode])
+  const onPaneClick = useCallback(() => {
+    selectNode(null)
+    setPicker(null)
+  }, [selectNode])
 
+  // ── Bug 修复：用 ref 记录最近一次 onConnect 的时间戳
+  //    如果 onConnectEnd 在 onConnect 后 100ms 内触发，说明是接到了合法节点，不应创建新节点
+  const lastConnectAt = useRef(0)
+  const onConnectWrapped = useCallback((conn: Parameters<typeof onConnect>[0]) => {
+    lastConnectAt.current = Date.now()
+    onConnect(conn)
+  }, [onConnect])
+
+  // ── 空白处释放：弹出节点类型选择器 ───────────────────────────────
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, connectionState: any) => {
-      if (!connectionState?.isValid) {
-        const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event
-        const domNode = document.querySelector('.react-flow__renderer')
-        if (!domNode) return
-        const rect = domNode.getBoundingClientRect()
-        addNodeOfType(
-          'genericAgent',
-          { x: clientX - rect.left, y: clientY - rect.top },
-          connectionState?.fromNode
-            ? { fromNodeId: connectionState.fromNode.id, handleType: connectionState.fromHandle?.type ?? 'source' }
-            : undefined,
-        )
-      }
+      // 如果 100ms 内刚刚触发了 onConnect（合法连接），直接跳过
+      if (Date.now() - lastConnectAt.current < 100) return
+      // connectionState.isValid 在某些 ReactFlow 版本里连到合法节点时仍为 false/null
+      // 改为：只有 fromNode 存在（= 用户是从某个节点拖出来的）才弹选择器
+      if (!connectionState?.fromNode) return
+
+      const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event
+      const domNode = document.querySelector('.react-flow__renderer')
+      if (!domNode) return
+      const rect = domNode.getBoundingClientRect()
+
+      setPicker({
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+        sx: clientX,
+        sy: clientY,
+        connection: {
+          fromNodeId: connectionState.fromNode.id,
+          handleType: connectionState.fromHandle?.type ?? 'source',
+        },
+      })
     },
-    [addNodeOfType],
+    [],
   )
 
+  // ── 从选择器创建节点 ──────────────────────────────────────────
+  const onPickerSelect = useCallback((type: string) => {
+    if (!picker) return
+    addNodeOfType(type, { x: picker.x, y: picker.y }, picker.connection)
+    setPicker(null)
+  }, [picker, addNodeOfType])
+
+  // ── 键盘：Delete 删除 / Ctrl+Z 撤销 / Ctrl+Y 重做 ────────────
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+    const ctrl = e.ctrlKey || e.metaKey
+    if (ctrl && e.key === 'z') { e.preventDefault(); undo(); return }
+    if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); return }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId &&
+        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
       deleteNode(selectedNodeId)
     }
-  }, [selectedNodeId, deleteNode])
+  }, [selectedNodeId, deleteNode, undo, redo])
+
+  const CORE_TYPES   = ['agent', 'code_tool', 'module_output']
+  const ASSIST_TYPES = ['condition', 'loop', 'human_approval', 'notify']
+  const PICKER_NODES = [...CORE_TYPES, ...ASSIST_TYPES].map((t) => getNodeDef(t)).filter(Boolean) as NonNullable<ReturnType<typeof getNodeDef>>[]
 
   return (
     <div className="workflow-view" onKeyDown={onKeyDown} tabIndex={0}
          style={{ display: 'flex', position: 'absolute', inset: 0 }}>
-      <Palette />
+      <Palette canUndo={canUndo} canRedo={canRedo} onUndo={undo} onRedo={redo} />
       <ReactFlow
         style={{ flex: 1 }}
         nodes={decoratedNodes}
@@ -1012,7 +1067,7 @@ export default function WorkflowView() {
         edgeTypes={edgeTypes}
         onNodesChange={(changes: NodeChange[]) => applyNC(changes)}
         onEdgesChange={(changes: EdgeChange[]) => applyEC(changes)}
-        onConnect={onConnect}
+        onConnect={onConnectWrapped}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onConnectEnd={onConnectEnd as any}
@@ -1028,6 +1083,62 @@ export default function WorkflowView() {
           style={{ background: 'var(--surface-glass-strong)', border: '0.5px solid var(--border-subtle)', borderRadius: 10 }}
         />
       </ReactFlow>
+
+      {/* 节点类型选择器弹窗 */}
+      {picker && (
+        <>
+          {/* 遮罩 */}
+          <div style={{ position: 'fixed', inset: 0, zIndex: 200 }} onClick={() => setPicker(null)} />
+          <div style={{
+            position: 'fixed',
+            left: Math.min(picker.sx, window.innerWidth - 240),
+            top: Math.min(picker.sy, window.innerHeight - 320),
+            zIndex: 201,
+            background: 'var(--surface-elevated)',
+            border: '0.5px solid var(--border-default)',
+            borderRadius: 'var(--r-12)',
+            boxShadow: 'var(--shadow-4)',
+            padding: 'var(--s-3)',
+            width: 220,
+            animation: 'modal-in 0.12s var(--ease-spring)',
+          }}>
+            <p style={{ margin: '0 0 var(--s-3)', padding: '0 var(--s-2)', fontSize: 'var(--fs-11)', fontWeight: 'var(--fw-semi)', color: 'var(--text-tertiary)', letterSpacing: 'var(--tracking-wide)', textTransform: 'uppercase' }}>
+              添加节点
+            </p>
+            {/* 分组：核心 */}
+            <p style={{ margin: '0 0 var(--s-1)', padding: '0 var(--s-2)', fontSize: 10, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>核心</p>
+            {PICKER_NODES.filter((d) => CORE_TYPES.includes(d.type)).map((d) => (
+              <button key={d.type} onClick={() => onPickerSelect(d.type)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--s-3)', padding: 'var(--s-2) var(--s-3)', borderRadius: 'var(--r-6)', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--c-neutral-100)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ width: 24, height: 24, borderRadius: 'var(--r-6)', background: `color-mix(in srgb, ${d.accentColor ?? '#888'} 14%, transparent)`, color: d.accentColor ?? '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>{d.icon}</span>
+                <div>
+                  <p style={{ margin: 0, fontSize: 'var(--fs-12)', fontWeight: 'var(--fw-medium)', color: 'var(--text-primary)' }}>{d.title}</p>
+                  <p style={{ margin: 0, fontSize: 10, color: 'var(--text-quaternary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{d.description?.slice(0, 30)}</p>
+                </div>
+              </button>
+            ))}
+            {/* 分组：辅助 */}
+            <div style={{ height: '0.5px', background: 'var(--border-subtle)', margin: 'var(--s-2) var(--s-2)' }} />
+            <p style={{ margin: '0 0 var(--s-1)', padding: '0 var(--s-2)', fontSize: 10, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>辅助</p>
+            {PICKER_NODES.filter((d) => ASSIST_TYPES.includes(d.type)).map((d) => (
+              <button key={d.type} onClick={() => onPickerSelect(d.type)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--s-3)', padding: 'var(--s-2) var(--s-3)', borderRadius: 'var(--r-6)', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--c-neutral-100)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ width: 24, height: 24, borderRadius: 'var(--r-6)', background: `color-mix(in srgb, ${d.accentColor ?? '#888'} 14%, transparent)`, color: d.accentColor ?? '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>{d.icon}</span>
+                <div>
+                  <p style={{ margin: 0, fontSize: 'var(--fs-12)', fontWeight: 'var(--fw-medium)', color: 'var(--text-primary)' }}>{d.title}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <SidePanel />
     </div>
   )

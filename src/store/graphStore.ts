@@ -39,10 +39,22 @@ function makeNodeId(prefix = 'agent') {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
 }
 
+interface HistoryEntry { nodes: Node[]; edges: Edge[] }
+
 interface GraphState {
   nodes: Node[]
   edges: Edge[]
   selectedNodeId: string | null
+
+  // undo/redo history
+  _past:   HistoryEntry[]
+  _future: HistoryEntry[]
+  canUndo: boolean
+  canRedo: boolean
+  undo: () => void
+  redo: () => void
+  /** 调用方在做「可撤销操作」前先 push 快照 */
+  _pushHistory: () => void
 
   applyNodeChanges: (changes: NodeChange[]) => void
   applyEdgeChanges: (changes: EdgeChange[]) => void
@@ -63,10 +75,45 @@ interface GraphState {
   setEdges: (edges: Edge[]) => void
 }
 
+const MAX_HISTORY = 50
+
 export const useGraphStore = create<GraphState>((set, get) => ({
   nodes: makeSeedNodes(),
   edges: makeSeedEdges(),
   selectedNodeId: null,
+
+  _past:   [],
+  _future: [],
+  canUndo: false,
+  canRedo: false,
+
+  _pushHistory: () => {
+    const { nodes, edges, _past } = get()
+    const entry: HistoryEntry = {
+      nodes: nodes.map((n) => ({ ...n })),
+      edges: edges.map((e) => ({ ...e })),
+    }
+    const past = [..._past, entry].slice(-MAX_HISTORY)
+    set({ _past: past, _future: [], canUndo: true, canRedo: false })
+  },
+
+  undo: () => {
+    const { _past, nodes, edges, _future } = get()
+    if (!_past.length) return
+    const prev = _past[_past.length - 1]
+    const past = _past.slice(0, -1)
+    const future = [{ nodes: nodes.map((n) => ({ ...n })), edges: edges.map((e) => ({ ...e })) }, ..._future].slice(0, MAX_HISTORY)
+    set({ nodes: prev.nodes, edges: prev.edges, _past: past, _future: future, canUndo: past.length > 0, canRedo: true })
+  },
+
+  redo: () => {
+    const { _future, nodes, edges, _past } = get()
+    if (!_future.length) return
+    const next = _future[0]
+    const future = _future.slice(1)
+    const past = [..._past, { nodes: nodes.map((n) => ({ ...n })), edges: edges.map((e) => ({ ...e })) }].slice(-MAX_HISTORY)
+    set({ nodes: next.nodes, edges: next.edges, _past: past, _future: future, canUndo: true, canRedo: future.length > 0 })
+  },
 
   applyNodeChanges: (changes) =>
     set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
@@ -76,6 +123,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   onConnect: (conn) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return
+    get()._pushHistory()
     set((s) => {
       const exists = s.edges.some(
         (e) => e.source === conn.source && e.target === conn.target,
@@ -99,6 +147,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       console.warn(`[graphStore] Unknown node type: ${type}`)
       return null
     }
+    get()._pushHistory()
     const id = makeNodeId(type)
     const pos = position ?? { x: 480 + Math.random() * 200, y: 300 + Math.random() * 80 }
 
@@ -143,6 +192,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   deleteNode: (id) => {
+    get()._pushHistory()
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id),
       edges: s.edges.filter((e) => e.source !== id && e.target !== id),
@@ -157,7 +207,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   resetGraph: () =>
-    set({ nodes: makeSeedNodes(), edges: makeSeedEdges(), selectedNodeId: null }),
+    set({ nodes: makeSeedNodes(), edges: makeSeedEdges(), selectedNodeId: null, _past: [], _future: [], canUndo: false, canRedo: false }),
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
