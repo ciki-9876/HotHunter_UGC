@@ -11,6 +11,12 @@ import CreatorCenter from './views/CreatorCenter'
 import KnowledgeBase from './views/KnowledgeBase'
 import Lab from './views/Lab'
 import AgentCluster from './views/AgentCluster'
+import GameplayDesigner from './views/GameplayDesigner'
+import RecommendAnalyst from './views/RecommendAnalyst'
+import CraftEngineer from './views/CraftEngineer'
+import SentimentAnalyst from './views/SentimentAnalyst'
+import VersionWorker from './views/VersionWorker'
+import SiteAdmin from './views/SiteAdmin'
 import SettingsView from './views/Settings'
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */
@@ -114,14 +120,20 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
   const isRunning      = useExecutionStore((s) => s.isRunning)
 
   const tabs = [
-    { id: 'workflow'       as const, icon: '⬡', label: '工作流' },
-    { id: 'dau'            as const, icon: '◈', label: '大盘数据' },
-    { id: 'level-center'   as const, icon: '◫', label: '关卡中心' },
-    { id: 'creator'        as const, icon: '👥', label: '创作者运营' },
-    { id: 'knowledge'      as const, icon: '📚', label: '知识库' },
-    { id: 'lab'            as const, icon: '🧪', label: '实验室' },
-    { id: 'agent-cluster'  as const, icon: '⚡', label: 'Agent 集群' },
-    { id: 'settings'       as const, icon: '⚙️', label: '系统管理' },
+    { id: 'workflow'           as const, icon: '⬡', label: '工作流' },
+    { id: 'dau'                as const, icon: '◈', label: '大盘数据' },
+    { id: 'level-center'       as const, icon: '◫', label: '关卡中心' },
+    { id: 'creator'            as const, icon: '👥', label: '创作者运营' },
+    { id: 'gameplay-designer'  as const, icon: '🎮', label: '玩法设计师' },
+    { id: 'recommend-analyst'  as const, icon: '📊', label: '推荐分析师' },
+    { id: 'craft-engineer'     as const, icon: '⚙️', label: '创作工程师' },
+    { id: 'sentiment-analyst'  as const, icon: '💬', label: '反馈小助手' },
+    { id: 'version-worker'     as const, icon: '📅', label: '版更工具人' },
+    { id: 'knowledge'          as const, icon: '📚', label: '知识库' },
+    { id: 'lab'                as const, icon: '🧪', label: '实验室' },
+    { id: 'agent-cluster'      as const, icon: '⚡', label: 'Agent 集群' },
+    { id: 'site-admin'         as const, icon: '🛡️', label: '网站管理' },
+    { id: 'settings'           as const, icon: '🔧', label: '系统设置' },
   ]
 
   return (
@@ -167,17 +179,23 @@ export default function App() {
     <div className="app-shell">
       <TopBar onSettings={() => setSettingsOpen(true)} />
       <main className="app-main">
-        {view === 'workflow'      && <WorkflowView />}
-        {view === 'dau'           && <DauView />}
-        {view === 'level-center'  && <LevelCenter />}
-        {view === 'creator'       && <CreatorCenter />}
-        {view === 'knowledge'     && <KnowledgeBase />}
-        {view === 'lab'           && <Lab />}
-        {view === 'agent-cluster' && <AgentCluster />}
-        {view === 'settings'      && <SettingsView />}
-        {view === 'dashboard'     && <DashboardView />}
-        {view === 'project'       && <ProjectCenterView />}
-        {view === 'tokens'        && <TokensView />}
+        {view === 'workflow'           && <WorkflowView />}
+        {view === 'dau'                && <DauView />}
+        {view === 'level-center'       && <LevelCenter />}
+        {view === 'creator'            && <CreatorCenter />}
+        {view === 'gameplay-designer'  && <GameplayDesigner />}
+        {view === 'recommend-analyst'  && <RecommendAnalyst />}
+        {view === 'craft-engineer'     && <CraftEngineer />}
+        {view === 'sentiment-analyst'  && <SentimentAnalyst />}
+        {view === 'version-worker'     && <VersionWorker />}
+        {view === 'knowledge'          && <KnowledgeBase />}
+        {view === 'lab'                && <Lab />}
+        {view === 'agent-cluster'      && <AgentCluster />}
+        {view === 'site-admin'         && <SiteAdmin />}
+        {view === 'settings'           && <SettingsView />}
+        {view === 'dashboard'          && <DashboardView />}
+        {view === 'project'            && <ProjectCenterView />}
+        {view === 'tokens'             && <TokensView />}
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ToastLayer />
