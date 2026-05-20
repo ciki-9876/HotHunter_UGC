@@ -176,7 +176,7 @@ function SettingsModal() {
 
 const VIEW_TABS: { id: ViewTab; label: string; icon: string }[] = [
   { id: 'workflow', label: '工作流', icon: '⌘' },
-  { id: 'dashboard', label: '数据看板', icon: '◧' },
+  { id: 'dashboard', label: '热点监控', icon: '◧' },
   { id: 'project', label: '项目中心', icon: '▤' },
   { id: 'tokens', label: '设计令牌', icon: '◇' },
 ]
@@ -217,7 +217,7 @@ function TopBar() {
     <div className="top-bar">
       <span className="brand">
         <span className="brand-mark" />
-        Agent 蓝图
+        Hot Hunter UGC
       </span>
 
       <nav className="view-tabs" role="tablist">

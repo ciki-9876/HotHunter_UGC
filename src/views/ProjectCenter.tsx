@@ -111,28 +111,28 @@ export default function ProjectCenterView() {
             </div>
           )}
           {files.map((f) => (
-            <button
-              key={f.id}
-              className={`file-row ${active?.id === f.id ? 'active' : ''}`}
-              onClick={() => setActiveId(f.id)}
-            >
-              <div className="file-row-name">{f.filename}</div>
-              <div className="file-row-meta">
-                <span className="file-ext">{f.extension}</span>
-                <span>{f.topic}</span>
-                <span className="muted">{formatTime(f.generatedAt)}</span>
-              </div>
+            <div key={f.id} className="file-row-shell">
+              <button
+                className={`file-row ${active?.id === f.id ? 'active' : ''}`}
+                onClick={() => setActiveId(f.id)}
+              >
+                <div className="file-row-name">{f.filename}</div>
+                <div className="file-row-meta">
+                  <span className="file-ext">{f.extension}</span>
+                  <span>{f.topic}</span>
+                  <span className="muted">{formatTime(f.generatedAt)}</span>
+                </div>
+              </button>
               <button
                 className="file-row-remove"
-                onClick={(e) => {
-                  e.stopPropagation()
+                onClick={() => {
                   removeFile(f.id)
                   if (active?.id === f.id) setActiveId(null)
                 }}
               >
                 ×
               </button>
-            </button>
+            </div>
           ))}
         </aside>
 

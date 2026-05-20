@@ -36,15 +36,68 @@ export function dispatchSpecFor(target: DispatchTarget): DispatchFormatSpec {
  *  Dashboard format — HotTopicCard
  * ============================================================ */
 
+export type HotTopicType =
+  | '热梗'
+  | '联动'
+  | '版本节点'
+  | '游戏'
+  | '短剧/动漫'
+  | '本篇延伸'
+  | '新闻时政'
+
+export type HotTopicStatus = 'new' | 'watching' | 'ignored' | 'in-production'
+
+export type HotTopicStage = 'rising' | 'peak' | 'fading' | 'stable'
+
+export type HotTopicUrgency = 'low' | 'medium' | 'high'
+
+export interface HotSignalPreview {
+  platform: string
+  title: string
+  url?: string
+  heat: '高' | '中' | '低'
+}
+
+export interface HotEvaluationReport {
+  generatedAt: number
+  trendSummary: string
+  toneMatch: number
+  feasibility: '高' | '中' | '低'
+  targetAudience: string
+  emotionalDirection: string[]
+  windowSummary: string
+  peakInDays: number
+  gameplayDirections: {
+    title: string
+    retention: '强' | '中' | '弱'
+    difficulty: '低' | '中' | '高'
+    reason: string
+  }[]
+  creatorSuggestion: string
+  productionCycleDays: number
+  recommendation: '建议立项' | '谨慎立项' | '不建议'
+  priority: '高' | '中' | '低'
+  risks: string[]
+}
+
 export interface HotTopicCard {
   id: string
-  source: 'workflow' | 'external'
+  source: 'workflow' | 'external' | 'manual'
   title: string
   hotScore: number // 0-100
   trend: number // -50 ~ +50 (% delta)
   summary: string
   tags: string[]
   createdAt: number
+  topicType?: HotTopicType
+  platforms?: string[]
+  signals?: HotSignalPreview[]
+  windowDays?: number
+  stage?: HotTopicStage
+  fitScore?: number
+  urgency?: HotTopicUrgency
+  status?: HotTopicStatus
+  evaluation?: HotEvaluationReport
 }
 
 const TAG_CANDIDATES = [
@@ -116,6 +169,20 @@ export function toHotTopicCard(
     summary: extractSummary(upstreamText) || '（暂无摘要）',
     tags: pickTags(upstreamText, topic),
     createdAt: Date.now(),
+    topicType: '本篇延伸',
+    platforms: ['工作流'],
+    signals: [
+      {
+        platform: '工作流',
+        title: extractTitle(upstreamText, topic || '未命名'),
+        heat: hotScore >= 85 ? '高' : hotScore >= 70 ? '中' : '低',
+      },
+    ],
+    windowDays: hotScore >= 85 ? 5 : 9,
+    stage: trend > 8 ? 'rising' : trend < -8 ? 'fading' : 'stable',
+    fitScore: Math.min(98, Math.max(55, hotScore - 6)),
+    urgency: hotScore >= 85 ? 'high' : hotScore >= 70 ? 'medium' : 'low',
+    status: 'new',
   }
 }
 
